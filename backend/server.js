@@ -11,6 +11,12 @@ import { Server } from "socket.io";
 import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
+import User from "./models/User";
+import { error } from "console";
+
+dotenv.config();
 
 // Main server class that handles Express, Socket.IO and MongoDB setup
 class ChatServer {
@@ -28,6 +34,7 @@ class ChatServer {
         this.setupMiddleware();
         this.setupSocketEvents();
         this.connectDatabase();
+        this.setupRoutes();
     }
 
     // Configure basic Express middleware
@@ -68,11 +75,74 @@ class ChatServer {
     // Establish MongoDB connection
     async connectDatabase() {
         try {
-            await mongoose.connect("mongodb://localhost:27017/rt-chat-app");
+            await mongoose.connect(process.env.MONGODB_URI); // Replaced URI with dotenv constant
             console.log("Connected to MongoDB");
         } catch (error) {
             console.error("Database connection error:", error);
         }
+    }
+
+    setupRoutes() {
+        // Registration
+        this.app.post("/api/register", async (req, res) => {
+            try {
+                const { username, password } = req.body;
+                const hashedPassword = await bcrypt.hash(password, 10);
+
+                const user = new User({
+                    username,
+                    password: hashedPassword,
+                });
+
+                await user.save();
+
+                const token = jwt.sign(
+                    { userId: user._id },
+                    process.env.JWT_SECRET,
+                    {
+                        expiresIn: "24h",
+                    }
+                );
+
+                res.status(201).json({
+                    token,
+                    user: { id: user._id, username },
+                });
+            } catch {
+                res.status(400).json({ error: error.message });
+            }
+        });
+
+        this.app.post("/api/login", async (req, res) => {
+            try {
+                const { username, password } = req.body;
+                const user = await User.findOne({ username });
+
+                if (!user) {
+                    return res.status(401).json({ error: "User not found" });
+                }
+
+                const validPassword = await bcrypt.compare(
+                    password,
+                    user.password
+                );
+                if (!validPassword) {
+                    return res.status(401).json({ error: "Invalid password" });
+                }
+
+                const token = jwt.sign(
+                    { userId: user._id },
+                    process.env.JWT_SECRET,
+                    {
+                        expiresIn: "24h",
+                    }
+                );
+
+                res.json({ token, user: { id: user._id, username } });
+            } catch {
+                res.status(400).json({ error: error.message });
+            }
+        });
     }
 
     // Start the server on a specified port
