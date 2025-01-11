@@ -6,6 +6,7 @@
 //
 
 import { defineStore } from "pinia";
+import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
 
 export const useAuthStore = defineStore("auth", {
     state: () => ({
@@ -69,4 +70,5 @@ export const useAuthStore = defineStore("auth", {
             this.user = null;
         },
     },
+    persist: true,
 });

@@ -13,8 +13,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
-import User from "./models/User";
-import { error } from "console";
+import User from "./models/User.js";
+import Channel from "./models/Channel.js";
 
 dotenv.config();
 
@@ -26,7 +26,7 @@ class ChatServer {
         // Initialize Socket.IO with CORS settings for frontend connection
         this.io = new Server(this.server, {
             cors: {
-                origin: "http://localhost:3000",
+                origin: process.env.FRONTEND_URL || "http://localhost:3000",
                 methods: ["GET", "POST"],
             },
         });
@@ -41,35 +41,6 @@ class ChatServer {
     setupMiddleware() {
         this.app.use(cors());
         this.app.use(express.json());
-    }
-
-    setupSocketEvents() {
-        // Handle new client connections
-        this.io.on("connection", (socket) => {
-            console.log("User connected:", socket.id);
-
-            // Handle channel join requests
-            socket.on("join-channel", (channelId) => {
-                socket.join(channelId);
-                console.log(`User ${socket.id} joined channel ${channelId}`);
-            });
-
-            // Handle channel leave requests
-            socket.on("leave-channel", (channelId) => {
-                socket.leave(channelId);
-                console.log(`User ${socket.id} left channel ${channelId}`);
-            });
-
-            // Sending message to a specific channel
-            socket.on("send-message", (data) => {
-                this.io.to(data.channelId).emit("receive-message", data);
-            });
-
-            // Clean up on client disconnect
-            socket.on("disconnect", () => {
-                console.log("User disconnected:", socket.id);
-            });
-        });
     }
 
     // Establish MongoDB connection
@@ -108,11 +79,12 @@ class ChatServer {
                     token,
                     user: { id: user._id, username },
                 });
-            } catch {
+            } catch (error) {
+                console.errir("Registration error:", error);
                 res.status(400).json({ error: error.message });
             }
         });
-
+        // Login
         this.app.post("/api/login", async (req, res) => {
             try {
                 const { username, password } = req.body;
@@ -139,9 +111,153 @@ class ChatServer {
                 );
 
                 res.json({ token, user: { id: user._id, username } });
-            } catch {
+            } catch (error) {
+                console.error("Login error:", error);
                 res.status(400).json({ error: error.message });
             }
+        });
+        // New channel
+        this.app.post("/api/channels", async (req, res) => {
+            try {
+                const { name, creatorId } = req.body;
+                const channel = new Channel({
+                    name,
+                    creator: creatorId,
+                    members: [creatorId],
+                });
+
+                await channel.save();
+
+                // Refresh user's channels list
+                await User.findByIdAndUpdate(creatorId, {
+                    $push: { channels: channel._id },
+                });
+                res.status(201).json(channel); // Send response
+            } catch (error) {
+                console.error("Channel creation error:", error);
+                res.status(400).json({ error: error.message });
+            }
+        });
+        // Get channels
+        this.app.get("/api/channels", async (req, res) => {
+            try {
+                const channels = await Channel.find()
+                    .populate("creator", "username")
+                    .populate("members", "username");
+                res.json(channels);
+            } catch (error) {
+                console.error("Get channels error:", error);
+                res.status(400).json({ error: error.message });
+            }
+        });
+        // Channel join
+        this.app.post("/api/channels/:channelId/join", async (req, res) => {
+            try {
+                const { channelId } = req.params;
+                const { userId } = req.body;
+
+                const channel = await Channel.findByIdAndUpdate(
+                    channelId,
+                    { $addToSet: { members: userId } },
+                    { new: true }
+                );
+
+                await User.findByIdAndUpdate(userId, {
+                    $addToSet: { channels: channelId },
+                });
+
+                res.json(channel); // Fixed typo: res.join -> res.json
+            } catch (error) {
+                console.error("Channel join error:", error);
+                res.status(400).json({ error: error.message });
+            }
+        });
+        // Get messages for a channel
+        this.app.get("/api/channels/:channelId/messages", async (req, res) => {
+            try {
+                const { channelId } = req.params;
+                if (!channelId) {
+                    return req
+                        .status(400)
+                        .json({ error: "Channel ID is required" });
+                }
+                const channel = await Channel.findById(channelId).populate(
+                    "messages.sender",
+                    "username"
+                );
+                res.json(channel.messages);
+            } catch (error) {
+                console.error(
+                    "Unable to get messages for a selected channel",
+                    error
+                );
+                res.status(400).json({ error: error.message });
+            }
+        });
+    }
+
+    setupSocketEvents() {
+        // Handle new client connections
+        this.io.on("connection", (socket) => {
+            console.log("User connected:", socket.id);
+
+            // Handle channel join requests
+            socket.on("join-channel", (channelId) => {
+                socket.join(channelId);
+                console.log(`User ${socket.id} joined channel ${channelId}`);
+            });
+
+            // Handle channel leave requests
+            socket.on("leave-channel", (channelId) => {
+                socket.leave(channelId);
+                console.log(`User ${socket.id} left channel ${channelId}`);
+            });
+
+            // Sending message to a specific channel
+            socket.on("send-message", async (data) => {
+                // this.io.to(data.channelId).emit("receive-message", data);
+                try {
+                    const { channelId, content, userId } = data;
+
+                    // Validate channelId and userId
+                    const channel = await Channel.findById(channelId);
+                    const user = await User.findById(userId);
+
+                    if (!channel || !user) {
+                        throw new Error("Invalid channel or user");
+                    }
+
+                    // Save message to MongoDB
+                    await Channel.findByIdAndUpdate(
+                        channelId,
+                        {
+                            $push: {
+                                messages: {
+                                    sender: userId,
+                                    content: content,
+                                    timestamp: new Date(),
+                                },
+                            },
+                        },
+                        { new: true }
+                    );
+
+                    // Broadcast message to channel
+                    this.io.to(channelId).emit("receive-message", {
+                        channelId,
+                        content,
+                        sender: { id: userId, username: user.username },
+                        timestamp: new Date(),
+                    });
+                } catch (error) {
+                    console.error("Error sending message:", error);
+                }
+            });
+
+            // Clean up on client disconnect
+            socket.on("disconnect", () => {
+                console.log("User disconnected:", socket.id);
+            });
         });
     }
 
@@ -155,4 +271,4 @@ class ChatServer {
 
 // Create and start server instance
 const chatServer = new ChatServer();
-chatServer.start(4000);
+chatServer.start(process.env.PORT || 4000);
