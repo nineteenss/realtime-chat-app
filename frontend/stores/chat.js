@@ -9,6 +9,9 @@ import { defineStore } from "pinia";
 import { io } from "socket.io-client";
 import { useAuthStore } from "./auth";
 
+// Define the backend URL
+const backendUrl = "http://localhost:4000";
+
 // Define a Pinia store for chat functionality
 export const useChatStore = defineStore("chat", {
     // Initial state of the store
@@ -29,7 +32,7 @@ export const useChatStore = defineStore("chat", {
         // Initialize Socket.io connection
         async initSocket() {
             // Connect to the Socket.io server running on localhost:4000
-            this.socket = io("http://localhost:4000");
+            this.socket = io(backendUrl);
 
             // Listen for incoming messages and add them to messages array
             this.socket.on("receive-message", (message) => {
@@ -46,9 +49,7 @@ export const useChatStore = defineStore("chat", {
         // Fetch available chat channels
         async fetchChannels() {
             try {
-                const response = await fetch(
-                    "http://localhost:4000/api/channels"
-                );
+                const response = await fetch(`${backendUrl}/api/channels`);
                 const data = await response.json();
                 this.channels = data;
             } catch (error) {
@@ -60,19 +61,16 @@ export const useChatStore = defineStore("chat", {
         async createChannel(name) {
             const authStore = useAuthStore();
             try {
-                const response = await fetch(
-                    "http://localhost:4000/api/channels",
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                            name,
-                            creatorId: authStore.user.id,
-                        }),
-                    }
-                );
+                const response = await fetch(`${backendUrl}/api/channels`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        name,
+                        creatorId: authStore.user.id,
+                    }),
+                });
 
                 // Refresh channels list
                 const channel = await response.json();
@@ -89,7 +87,7 @@ export const useChatStore = defineStore("chat", {
             const authStore = useAuthStore();
             try {
                 const response = await fetch(
-                    `http://localhost:4000/api/channels/${channelId}`,
+                    `${backendUrl}/api/channels/${channelId}`,
                     {
                         method: "DELETE",
                         headers: {
@@ -124,7 +122,7 @@ export const useChatStore = defineStore("chat", {
             const authStore = useAuthStore();
             try {
                 const response = await fetch(
-                    `http://localhost:4000/api/channels/${channelId}/join`,
+                    `${backendUrl}/api/channels/${channelId}/join`,
                     {
                         method: "POST",
                         headers: {
@@ -154,7 +152,7 @@ export const useChatStore = defineStore("chat", {
             const authStore = useAuthStore();
             try {
                 const response = await fetch(
-                    `http://localhost:4000/api/channels/${channelId}/leave`,
+                    `${backendUrl}/api/channels/${channelId}/leave`,
                     {
                         method: "POST",
                         headers: {
@@ -223,7 +221,7 @@ export const useChatStore = defineStore("chat", {
         async fetchMessages(channelId) {
             try {
                 const response = await fetch(
-                    `http://localhost:4000/api/channels/${channelId}/messages`
+                    `${backendUrl}/api/channels/${channelId}/messages`
                 );
                 if (!response.ok) {
                     throw new Error("Failed to fetch messages");
