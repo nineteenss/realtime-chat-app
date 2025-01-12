@@ -24,16 +24,23 @@
 </template>
 
 <script setup>
+// Imports
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 
+// Page meta
+definePageMeta({
+    requiresGuest: true,
+});
+
+// Variables
 const router = useRouter();
 const authStore = useAuthStore();
-
 const username = ref("");
 const password = ref("");
 
+// Functions
 async function handleSubmit() {
     try {
         await authStore.register(username.value, password.value);
@@ -42,4 +49,8 @@ async function handleSubmit() {
         alert(error.message);
     }
 }
+
+// Computed properties (if needed)
+
+// Watchers (if needed)
 </script>

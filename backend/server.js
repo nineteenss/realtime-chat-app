@@ -23,14 +23,30 @@ class ChatServer {
     constructor() {
         this.app = express();
         this.server = createServer(this.app);
+
+        // CORS setup for Express
+        this.app.use(
+            cors({
+                // Only for development purposes
+                // In production replace with actual frontend URL
+                origin: "*", // Allow access from any source
+                methods: ["GET", "POST", "PUT", "DELETE"],
+                allowedHeaders: ["Content-Type", "Authorization"],
+            })
+        );
+
         // Initialize Socket.IO with CORS settings for frontend connection
         this.io = new Server(this.server, {
             cors: {
-                origin: process.env.FRONTEND_URL || "http://localhost:3000",
+                // Only for development purposes
+                // In production replace with actual frontend URL
+                origin: "*",
+                // origin: process.env.FRONTEND_URL || "http://localhost:3000",
                 methods: ["GET", "POST"],
             },
         });
 
+        // Call setup methods
         this.setupMiddleware();
         this.setupSocketEvents();
         this.connectDatabase();
@@ -138,6 +154,40 @@ class ChatServer {
                 res.status(400).json({ error: error.message });
             }
         });
+        // Delete channel
+        this.app.delete("/api/channels/:channelId", async (req, res) => {
+            try {
+                const { channelId } = req.params;
+                const { userId } = req.body;
+
+                // Find the channel
+                const channel = await Channel.findById(channelId);
+                if (!channel) {
+                    return res.status(404).json({ error: "Channel not found" });
+                }
+
+                // Check if the user is the channel creator
+                if (channel.creator.toString() !== userId) {
+                    return res.status(403).json({
+                        error: "Only the creator can delete the channel",
+                    });
+                }
+
+                // Delete the channel
+                await Channel.findByIdAndDelete(channelId);
+
+                // Remove the channel from all users channels list
+                await User.updateMany(
+                    { channels: channelId },
+                    { $pull: { channels: channelId } }
+                );
+
+                res.json({ message: "Channel deleted successfully" });
+            } catch (error) {
+                console.error("Channel deletion error:", error);
+                res.status(400).json({ error: error.message });
+            }
+        });
         // Get channels
         this.app.get("/api/channels", async (req, res) => {
             try {
@@ -191,6 +241,29 @@ class ChatServer {
                     "Unable to get messages for a selected channel",
                     error
                 );
+                res.status(400).json({ error: error.message });
+            }
+        });
+        // Leave channel
+        this.app.post("/api/channels/:channelId/leave", async (req, res) => {
+            try {
+                const { channelId } = req.params;
+                const { userId } = req.body;
+
+                const channel = await Channel.findByIdAndUpdate(
+                    channelId,
+                    { $pull: { members: userId } },
+                    { new: true }
+                );
+
+                // Remove channel from user's list
+                await User.findByIdAndUpdate(userId, {
+                    $pull: { channels: channelId },
+                });
+
+                res.json(channel);
+            } catch (error) {
+                console.error("Error leaving channel:", error);
                 res.status(400).json({ error: error.message });
             }
         });

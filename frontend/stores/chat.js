@@ -21,6 +21,10 @@ export const useChatStore = defineStore("chat", {
     }),
 
     actions: {
+        /*
+            Socket-related actions
+        */
+
         // Initialize Socket.io connection
         async initSocket() {
             // Connect to the Socket.io server running on localhost:4000
@@ -34,6 +38,11 @@ export const useChatStore = defineStore("chat", {
             await this.fetchChannels();
         },
 
+        /*
+            Channel-related actions
+        */
+
+        // Fetch available chat channels
         async fetchChannels() {
             try {
                 const response = await fetch(
@@ -46,6 +55,7 @@ export const useChatStore = defineStore("chat", {
             }
         },
 
+        // Create a new chat channel
         async createChannel(name) {
             const authStore = useAuthStore();
             try {
@@ -63,11 +73,47 @@ export const useChatStore = defineStore("chat", {
                     }
                 );
 
+                // Refresh channels list
                 const channel = await response.json();
                 this.channels.push(channel);
                 return channel;
             } catch (error) {
                 console.error("Error creating channel:", error);
+                throw error;
+            }
+        },
+
+        // Delete a chat channel
+        async removeChannel(channelId) {
+            const authStore = useAuthStore();
+            try {
+                const response = await fetch(
+                    `http://localhost:4000/api/channels/${channelId}`,
+                    {
+                        method: "DELETE",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            userId: authStore.user.id,
+                        }),
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error("Failed to delete channel");
+                }
+
+                // Refresh channels list
+                await this.fetchChannels();
+
+                // Reset current channel if it was deleted
+                if (this.currentChannel === channelId) {
+                    this.currentChannel = null;
+                    this.messages = [];
+                }
+            } catch (error) {
+                console.error("Error deleting channel:", error);
                 throw error;
             }
         },
@@ -102,6 +148,47 @@ export const useChatStore = defineStore("chat", {
             }
         },
 
+        // Leave the channel
+        async leaveChannel(channelId) {
+            const authStore = useAuthStore();
+            try {
+                const response = await fetch(
+                    `http://localhost:4000/api/channels/${channelId}/leave`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            userId: authStore.user.id,
+                        }),
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error("Failed to leave channel");
+                }
+
+                // Emit event to server to leave the channel
+                this.socket.emit("leave-channel", channelId);
+                // Reset current channel and messages
+                if (this.currentChannel === channelId) {
+                    this.currentChannel = null;
+                    this.messages = [];
+                }
+                // Refresh channels list
+                await this.fetchChannels();
+            } catch (error) {
+                console.error("Error leaving channel", error);
+                throw error;
+            }
+        },
+
+        /*
+            Message-related actions
+        */
+
+        // Fetch messages for a specific channel
         async fetchMessages(channelId) {
             try {
                 const response = await fetch(

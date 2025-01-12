@@ -6,17 +6,24 @@
 //
 
 import { defineStore } from "pinia";
-import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
 
+// Define a Pinia store for authentication functionality
 export const useAuthStore = defineStore("auth", {
+    // Initial state of the store
     state: () => ({
         token: null,
         user: null,
     }),
 
     actions: {
+        /*
+            Authentication-related actions
+        */
+
+        // Register a new user
         async register(username, password) {
             try {
+                // Send a POST request to the server
                 const response = await fetch(
                     "http://localhost:4000/api/register",
                     {
@@ -28,9 +35,11 @@ export const useAuthStore = defineStore("auth", {
                     }
                 );
 
+                // Parse the JSON response
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error);
 
+                // Store the token and user data in the store
                 this.token = data.token;
                 this.user = data.user;
 
@@ -40,8 +49,10 @@ export const useAuthStore = defineStore("auth", {
             }
         },
 
+        // Log in an existing user
         async login(username, password) {
             try {
+                // Send a POST request to the login endpoint
                 const response = await fetch(
                     "http://localhost:4000/api/login",
                     {
@@ -53,9 +64,11 @@ export const useAuthStore = defineStore("auth", {
                     }
                 );
 
+                // Parse the JSON response
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error);
 
+                // Store the token and user data in the store
                 this.token = data.token;
                 this.user = data.user;
 
@@ -65,6 +78,7 @@ export const useAuthStore = defineStore("auth", {
             }
         },
 
+        // Log out the current user
         logout() {
             this.token = null;
             this.user = null;

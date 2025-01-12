@@ -17,7 +17,10 @@
             <p style="border-radius: 5px; font-size: 14px; width: fit-content">
                 Click on the channel below to join or enter
             </p>
-            <div v-for="channel in chatStore.channels" :key="channel._id">
+            <div
+                v-for="channel in chatStore.channels"
+                :key="channel._id + authStore.user.id"
+            >
                 <div
                     @click="selectChannel(channel._id)"
                     style="
@@ -33,6 +36,15 @@
                     {{ channel.name }}
                     ({{ channel.members.length }} members)
                 </div>
+                <button @click="leaveChannel(channel._id)">
+                    Leave channel
+                </button>
+                <button
+                    v-if="channel.creator._id === authStore.user.id"
+                    @click="removeChannel(channel._id)"
+                >
+                    Delete Channel
+                </button>
             </div>
         </div>
         <hr />
@@ -65,17 +77,28 @@
 </template>
 
 <script setup>
+// Imports
 import { ref, onMounted } from "vue";
 import { useChatStore } from "../stores/chat";
+import { useAuthStore } from "../stores/auth";
 
+// Page meta
+definePageMeta({
+    requiresAuth: true,
+});
+
+// Variables
 const chatStore = useChatStore();
+const authStore = useAuthStore();
 const newMessage = ref("");
 const newChannelName = ref("");
 
+// Lifecycle hooks
 onMounted(() => {
     chatStore.initSocket();
 });
 
+// Functions
 async function createNewChannel() {
     if (newChannelName.value.trim()) {
         try {
@@ -85,6 +108,15 @@ async function createNewChannel() {
             console.error("Error creating channel:", error);
             alert("Error creating channel");
         }
+    }
+}
+
+async function removeChannel(channelId) {
+    try {
+        await chatStore.removeChannel(channelId);
+    } catch (error) {
+        console.error("Error deleting channel:", error);
+        alert("Error deleting channel");
     }
 }
 
@@ -98,10 +130,23 @@ async function selectChannel(channelId) {
     }
 }
 
+async function leaveChannel(channelId) {
+    try {
+        await chatStore.leaveChannel(channelId);
+    } catch (error) {
+        console.error("Error leaving channel:", error);
+        alert("Error leaving channel");
+    }
+}
+
 function sendMessage() {
     if (newMessage.value.trim()) {
         chatStore.sendMessage(newMessage.value);
         newMessage.value = "";
     }
 }
+
+// Computed properties (if needed)
+
+// Watchers (if needed)
 </script>
