@@ -17,6 +17,7 @@ export const useChatStore = defineStore("chat", {
         currentChannel: null, // Currently active channel
         messages: [], // Array to store chat messages
         channels: [], // Array to store available channels
+        typingUsers: [], // Array to store users typing in the channel
         // users: [], // Array to store connected users
     }),
 
@@ -182,6 +183,36 @@ export const useChatStore = defineStore("chat", {
                 console.error("Error leaving channel", error);
                 throw error;
             }
+        },
+
+        // Send typing notification
+        sendTypingNotification() {
+            if (!this.currentChannel) return;
+
+            const authStore = useAuthStore();
+            this.socket.emit("typing", {
+                channelId: this.currentChannel,
+                username: authStore.user.username,
+            });
+        },
+
+        // Stop sending typing notification
+        stopTypingNotification() {
+            if (!this.currentChannel) return;
+
+            const authStore = useAuthStore();
+            this.socket.emit("stop-typing", {
+                channelId: this.currentChannel,
+                username: authStore.user.username,
+            });
+        },
+
+        // Listen for typing notifications
+        listenForTypingNotifications() {
+            this.socket.on("user-typing", (data) => {
+                // console.log(`${data.username} is typing...`);
+                this.typingUsers = data.typingUsers; // Store typing users
+            });
         },
 
         /*

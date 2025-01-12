@@ -55,8 +55,15 @@ class ChatServer {
 
     // Configure basic Express middleware
     setupMiddleware() {
-        this.app.use(cors());
+        // this.app.use(cors());
         this.app.use(express.json());
+        // Error handling middleware
+        this.app.use((err, req, res, next) => {
+            console.error(err.stack);
+            res.status(500).json({
+                error: `Something went wrong: ${err.message}`,
+            });
+        });
     }
 
     // Establish MongoDB connection
@@ -66,6 +73,7 @@ class ChatServer {
             console.log("Connected to MongoDB");
         } catch (error) {
             console.error("Database connection error:", error);
+            process.exit(1); // Exit process if database connection fails
         }
     }
 
@@ -274,6 +282,8 @@ class ChatServer {
         this.io.on("connection", (socket) => {
             console.log("User connected:", socket.id);
 
+            const typingUsers = {}; // Track typing users for each channel
+
             // Handle channel join requests
             socket.on("join-channel", (channelId) => {
                 socket.join(channelId);
@@ -288,7 +298,6 @@ class ChatServer {
 
             // Sending message to a specific channel
             socket.on("send-message", async (data) => {
-                // this.io.to(data.channelId).emit("receive-message", data);
                 try {
                     const { channelId, content, userId } = data;
 
@@ -307,7 +316,7 @@ class ChatServer {
                             $push: {
                                 messages: {
                                     sender: userId,
-                                    content: content,
+                                    content,
                                     timestamp: new Date(),
                                 },
                             },
@@ -324,6 +333,38 @@ class ChatServer {
                     });
                 } catch (error) {
                     console.error("Error sending message:", error);
+                }
+            });
+
+            // Handle message typing indicator
+            socket.on("typing", (data) => {
+                const { channelId, username } = data;
+
+                // Add user to typing list for the channel
+                if (!typingUsers[channelId]) {
+                    typingUsers[channelId] = new Set();
+                }
+                typingUsers[channelId].add(username);
+
+                // Broadcast the updated typing list to the channel
+                this.io.to(channelId).emit("user-typing", {
+                    channelId,
+                    typingUsers: Array.from(typingUsers[channelId]),
+                });
+            });
+
+            socket.on("stop-typing", (data) => {
+                const { channelId, username } = data;
+
+                // Remove user from the typing list
+                if (typingUsers[channelId]) {
+                    typingUsers[channelId].delete(username);
+
+                    // Broadcast the updated typing list to the channel
+                    this.io.to(channelId).emit("user-typing", {
+                        channelId,
+                        typingUsers: Array.from(typingUsers[channelId]),
+                    });
                 }
             });
 
