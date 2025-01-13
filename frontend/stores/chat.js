@@ -9,9 +9,6 @@ import { defineStore } from "pinia";
 import { io } from "socket.io-client";
 import { useAuthStore } from "./auth";
 
-// Define the backend URL
-const backendUrl = "http://localhost:4000";
-
 // Define a Pinia store for chat functionality
 export const useChatStore = defineStore("chat", {
     // Initial state of the store
@@ -26,11 +23,22 @@ export const useChatStore = defineStore("chat", {
 
     actions: {
         /*
+            Getter properties
+        */
+
+        // Helper function to get the backend URL
+        getBackendUrl() {
+            const config = useRuntimeConfig();
+            return config.public.apiBase;
+        },
+
+        /*
             Socket-related actions
         */
 
         // Initialize Socket.io connection
         async initSocket() {
+            const backendUrl = this.getBackendUrl();
             // Connect to the Socket.io server running on localhost:4000
             this.socket = io(backendUrl);
 
@@ -49,8 +57,10 @@ export const useChatStore = defineStore("chat", {
         // Fetch available chat channels
         async fetchChannels() {
             try {
+                const backendUrl = this.getBackendUrl();
+                // Send a GET request to the server
                 const response = await fetch(`${backendUrl}/api/channels`);
-                const data = await response.json();
+                const data = await response.json(); // Parse the JSON response
                 this.channels = data;
             } catch (error) {
                 console.error("Error fetching channels:", error);
@@ -61,6 +71,7 @@ export const useChatStore = defineStore("chat", {
         async createChannel(name) {
             const authStore = useAuthStore();
             try {
+                const backendUrl = this.getBackendUrl();
                 const response = await fetch(`${backendUrl}/api/channels`, {
                     method: "POST",
                     headers: {
@@ -86,6 +97,7 @@ export const useChatStore = defineStore("chat", {
         async removeChannel(channelId) {
             const authStore = useAuthStore();
             try {
+                const backendUrl = this.getBackendUrl();
                 const response = await fetch(
                     `${backendUrl}/api/channels/${channelId}`,
                     {
@@ -121,6 +133,7 @@ export const useChatStore = defineStore("chat", {
         async joinChannel(channelId) {
             const authStore = useAuthStore();
             try {
+                const backendUrl = this.getBackendUrl();
                 const response = await fetch(
                     `${backendUrl}/api/channels/${channelId}/join`,
                     {
@@ -151,6 +164,7 @@ export const useChatStore = defineStore("chat", {
         async leaveChannel(channelId) {
             const authStore = useAuthStore();
             try {
+                const backendUrl = this.getBackendUrl();
                 const response = await fetch(
                     `${backendUrl}/api/channels/${channelId}/leave`,
                     {
@@ -220,6 +234,7 @@ export const useChatStore = defineStore("chat", {
         // Fetch messages for a specific channel
         async fetchMessages(channelId) {
             try {
+                const backendUrl = this.getBackendUrl();
                 const response = await fetch(
                     `${backendUrl}/api/channels/${channelId}/messages`
                 );

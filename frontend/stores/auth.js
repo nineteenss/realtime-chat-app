@@ -17,23 +17,31 @@ export const useAuthStore = defineStore("auth", {
 
     actions: {
         /*
+            Getter properties
+        */
+
+        // Helper function to get the backend URL
+        getBackendUrl() {
+            const config = useRuntimeConfig();
+            return config.public.apiBase;
+        },
+
+        /*
             Authentication-related actions
         */
 
         // Register a new user
         async register(username, password) {
             try {
+                const backendUrl = this.getBackendUrl();
                 // Send a POST request to the server
-                const response = await fetch(
-                    "http://localhost:4000/api/register",
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({ username, password }),
-                    }
-                );
+                const response = await fetch(`${backendUrl}/api/register`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ username, password }),
+                });
 
                 // Parse the JSON response
                 const data = await response.json();
@@ -52,17 +60,15 @@ export const useAuthStore = defineStore("auth", {
         // Log in an existing user
         async login(username, password) {
             try {
+                const backendUrl = this.getBackendUrl();
                 // Send a POST request to the login endpoint
-                const response = await fetch(
-                    "http://localhost:4000/api/login",
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({ username, password }),
-                    }
-                );
+                const response = await fetch(`${backendUrl}/api/login`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ username, password }),
+                });
 
                 // Parse the JSON response
                 const data = await response.json();
