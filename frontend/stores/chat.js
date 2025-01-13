@@ -18,7 +18,6 @@ export const useChatStore = defineStore("chat", {
         messages: [], // Array to store chat messages
         channels: [], // Array to store available channels
         typingUsers: [], // Array to store users typing in the channel
-        // users: [], // Array to store connected users
     }),
 
     actions: {
@@ -134,6 +133,8 @@ export const useChatStore = defineStore("chat", {
             const authStore = useAuthStore();
             try {
                 const backendUrl = this.getBackendUrl();
+
+                //  Fetch the full channel details from the backend
                 const response = await fetch(
                     `${backendUrl}/api/channels/${channelId}/join`,
                     {
@@ -147,8 +148,13 @@ export const useChatStore = defineStore("chat", {
                     }
                 );
 
+                if (!response.ok) {
+                    throw new Error("Failed to fetch channel details");
+                }
+
                 // Emit event to server to join the channel & update current channel
                 this.socket.emit("join-channel", channelId);
+                // Update the currentChannel state with the fetched data
                 this.currentChannel = channelId;
                 this.messages = []; // Cleaning messages on channel switch
 
@@ -222,7 +228,6 @@ export const useChatStore = defineStore("chat", {
         // Listen for typing notifications
         listenForTypingNotifications() {
             this.socket.on("user-typing", (data) => {
-                // console.log(`${data.username} is typing...`);
                 this.typingUsers = data.typingUsers; // Store typing users
             });
         },
@@ -238,9 +243,11 @@ export const useChatStore = defineStore("chat", {
                 const response = await fetch(
                     `${backendUrl}/api/channels/${channelId}/messages`
                 );
+
                 if (!response.ok) {
                     throw new Error("Failed to fetch messages");
                 }
+
                 const data = await response.json();
                 this.messages = data;
             } catch (error) {

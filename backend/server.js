@@ -353,6 +353,7 @@ class ChatServer {
                 });
             });
 
+            // Handle message stop typing indicator
             socket.on("stop-typing", (data) => {
                 const { channelId, username } = data;
 

@@ -34,6 +34,11 @@ definePageMeta({
     requiresGuest: true,
 });
 
+// Head meta
+useHead({
+    title: "Login",
+});
+
 // Variables
 const router = useRouter();
 const authStore = useAuthStore();

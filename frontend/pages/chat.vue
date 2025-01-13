@@ -1,92 +1,186 @@
 <template>
-    <div class="p-4 bg-slate-400">
-        <div class="channels">
-            <h3>Channels</h3>
-            <div>
-                <input
-                    v-model="newChannelName"
-                    placeholder="New channel name"
-                />
-                <button
-                    @click="createNewChannel"
-                    :disabled="!newChannelName.trim()"
-                >
-                    Create Channel
-                </button>
-            </div>
-            <p style="border-radius: 5px; font-size: 14px; width: fit-content">
-                Click on the channel below to join or enter
-            </p>
-            <div
-                v-for="channel in chatStore.channels"
-                :key="channel._id + authStore.user.id"
-            >
-                <div
-                    @click="selectChannel(channel._id)"
-                    style="
-                        border: 1px solid;
-                        padding: 5px 10px;
-                        margin-bottom: 5px;
-                        border-radius: 5px;
-                        font-size: 14px;
-                        width: fit-content;
-                        cursor: pointer;
-                    "
-                >
-                    {{ channel.name }}
-                    ({{ channel.members.length }} members)
+    <div class="flex h-screen">
+        <!-- Left Column (Channels List) -->
+        <div class="flex flex-col min-w-[300px] w-1/4 bg-gray-100 p-4">
+            <!-- Channels Row -->
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold">Channels</h3>
+                <div>
+                    <input
+                        v-model="newChannelName"
+                        placeholder="New channel name"
+                        class="w-full p-2 border rounded mb-2"
+                    />
+                    <button
+                        @click="createNewChannel"
+                        :disabled="!newChannelName.trim()"
+                        class="btn bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
+                    >
+                        Create Channel
+                    </button>
                 </div>
-                <button
-                    @click="leaveChannel(channel._id)"
-                    v-if="
-                        channel.members.some(
-                            (member) =>
-                                member._id.toString() === authStore.user.id
-                        )
-                    "
+                <p class="mt-2 text-sm text-gray-600">
+                    Click on the channel below to join or enter
+                </p>
+                <div
+                    v-for="channel in chatStore.channels"
+                    :key="channel._id + authStore.user.id"
+                    class="mt-2"
                 >
-                    Leave channel
-                </button>
-                <button
-                    @click="removeChannel(channel._id)"
-                    v-if="channel.creator._id === authStore.user.id"
-                >
-                    Delete Channel
-                </button>
+                    <div
+                        @click="selectChannel(channel._id)"
+                        class="border border-gray-300 px-4 py-2 rounded cursor-pointer hover:bg-gray-200 transition-colors"
+                    >
+                        {{ channel.name }}
+                        ({{ channel.members.length }} members)
+                    </div>
+                    <button
+                        @click="leaveChannel(channel._id)"
+                        v-if="
+                            channel.members.some(
+                                (member) =>
+                                    member._id &&
+                                    member._id.toString() === authStore.user.id
+                            )
+                        "
+                        class="btn bg-red-500 text-white px-2 py-1 rounded mt-1 hover:bg-red-600"
+                    >
+                        Leave channel
+                    </button>
+                    <button
+                        @click="removeChannel(channel._id)"
+                        v-if="channel.creator._id === authStore.user.id"
+                        class="btn bg-red-500 text-white px-2 py-1 rounded mt-1 hover:bg-red-600"
+                    >
+                        Delete Channel
+                    </button>
+                </div>
+            </div>
+
+            <!-- PM Row -->
+            <div>
+                <h3 class="text-lg font-semibold">Personal</h3>
             </div>
         </div>
-        <hr />
-        <div class="messages" v-if="chatStore.currentChannel">
-            <div class="list">
-                <h3>Chat</h3>
+
+        <!-- Middle Column (Chat Messages) -->
+        <div class="flex flex-col flex-1 bg-white p-4">
+            <template v-if="chatStore.currentChannel">
+                <!-- Header with Room Title and Members Count -->
+                <div class="border-b border-gray-200 pb-4 mb-4">
+                    <h2 class="text-xl font-semibold">
+                        {{ chatStore.currentChannel }}
+                    </h2>
+                    <div class="text-sm text-gray-600 flex flex-row">
+                        Members online.&nbsp;
+                        <p
+                            v-if="chatStore.typingUsers.length > 0"
+                            class="text-sm text-gray-600"
+                        >
+                            {{
+                                formatTypingNotification(chatStore.typingUsers)
+                            }}
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Scrollable Top Row -->
+                <div class="flex-1 overflow-y-auto mb-4">
+                    <div class="space-y-2">
+                        <div
+                            v-for="message in chatStore.messages"
+                            :key="message.timestamp"
+                            class="p-2 bg-gray-200 rounded max-w-max"
+                        >
+                            <strong>{{ message.sender.username }}</strong>
+                            <p>{{ message.content }}</p>
+                            <small class="text-gray-600">{{
+                                new Date(message.timestamp).toLocaleString()
+                            }}</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pinned Bottom Row -->
                 <div
-                    v-for="message in chatStore.messages"
-                    :key="message.timestamp"
+                    class="h-16 bg-gray-100 flex items-center justify-center rounded"
                 >
-                    <strong>{{ message.sender.username }}</strong>
-                    <p>{{ message.content }}</p>
-                    <small>{{
-                        new Date(message.timestamp).toLocaleString()
-                    }}</small>
+                    <div class="message_input flex gap-2 w-full px-4">
+                        <input
+                            v-model="newMessage"
+                            @keyup.enter="sendMessage"
+                            @input="handleInput"
+                            placeholder="Type a message..."
+                            class="flex-1 p-2 border rounded"
+                        />
+                        <button
+                            @click="sendMessage"
+                            :disabled="!newMessage.trim()"
+                            class="btn bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
+                        >
+                            Send
+                        </button>
+                    </div>
+                </div>
+            </template>
+
+            <template v-else>
+                <div class="flex-1 flex items-center justify-center">
+                    <p class="text-gray-500 text-center">
+                        Please select a channel or chat to start a conversation.
+                    </p>
+                </div>
+            </template>
+        </div>
+
+        <!-- Right Column (Channel Info) -->
+        <div class="flex flex-col min-w-[300px] w-1/4 bg-gray-100 p-4">
+            <!-- First Row: Channel Info -->
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold">Channel Info</h3>
+                <div v-if="chatStore.currentChannel">
+                    <h4 class="text-md font-medium">
+                        {{ chatStore.currentChannel.name }}
+                        Channel Name
+                    </h4>
+                    <p class="text-sm text-gray-600">
+                        ID: {{ chatStore.currentChannel }}
+                    </p>
+                </div>
+                <div v-else>
+                    <p class="text-sm text-gray-600">No channel selected.</p>
                 </div>
             </div>
-            <hr />
-            <div
-                v-if="chatStore.typingUsers.length > 0"
-                class="typing-notification"
-            >
-                {{ formatTypingNotification(chatStore.typingUsers) }}
+
+            <!-- Second Row: Members List -->
+            <div class="mb-4 flex-1 overflow-y-auto">
+                <h3 class="text-lg font-semibold">
+                    Members ({{
+                        chatStore.currentChannel?.members?.length || 0
+                    }})
+                </h3>
+                <div v-if="chatStore.currentChannel" class="space-y-2 mt-2">
+                    <div
+                        v-for="member in chatStore.currentChannel.members"
+                        :key="member._id"
+                        class="p-2 bg-white rounded shadow-sm"
+                    >
+                        {{ member.username }}
+                    </div>
+                </div>
+                <div v-else>
+                    <p class="text-sm text-gray-600">No channel selected.</p>
+                </div>
             </div>
-            <hr />
-            <div class="message_input">
-                <input
-                    v-model="newMessage"
-                    @keyup.enter="sendMessage"
-                    @input="handleInput"
-                    placeholder="Type a message..."
-                />
-                <button @click="sendMessage" :disabled="!newMessage.trim()">
-                    Send
+
+            <!-- Third Row: Leave Channel Button -->
+            <div class="mt-auto">
+                <button
+                    v-if="chatStore.currentChannel"
+                    @click="leaveChannel(chatStore.currentChannel._id)"
+                    class="w-full btn bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                >
+                    Leave Channel
                 </button>
             </div>
         </div>
@@ -94,6 +188,8 @@
 </template>
 
 <script setup>
+// Components imports
+
 // Imports
 import { ref, onMounted, onUnmounted } from "vue";
 import { useChatStore } from "../stores/chat";
@@ -102,6 +198,11 @@ import { useAuthStore } from "../stores/auth";
 // Page meta
 definePageMeta({
     requiresAuth: true,
+});
+
+// Head meta
+useHead({
+    title: "Chat",
 });
 
 // Variables
@@ -213,11 +314,3 @@ function formatTypingNotification(typingUsers) {
 
 // Watchers (if needed)
 </script>
-
-<style scoped>
-.typing-notification {
-    font-size: 14px;
-    color: #666;
-    margin-top: 10px;
-}
-</style>
