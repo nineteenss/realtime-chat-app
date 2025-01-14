@@ -38,6 +38,17 @@ export const useChatStore = defineStore("chat", {
             });
         },
 
+        // Helper function to sort channels by the last message timestamp
+        sortChannelsByLastMessage(channels) {
+            return channels.slice().sort((a, b) => {
+                const lastMessageA =
+                    a.messages[a.messages.length - 1]?.timestamp || 0;
+                const lastMessageB =
+                    b.messages[b.messages.length - 1]?.timestamp || 0;
+                return new Date(lastMessageB) - new Date(lastMessageA);
+            });
+        },
+
         /*
             Getter properties
         */
@@ -74,6 +85,26 @@ export const useChatStore = defineStore("chat", {
             // Listen for updates to the online user list
             this.socket.on("update-online-users", (onlineUserIds) => {
                 this.onlineUsers = onlineUserIds;
+            });
+
+            // Listen for updates to the channels list
+            this.socket.on("update-channels", (updatedChannel) => {
+                // console.log("Received update-channels event:", updatedChannel); // Debugging
+                const index = this.channels.findIndex(
+                    (channel) => channel._id === updatedChannel._id
+                );
+                if (index !== -1) {
+                    // Update the messages array reactively
+                    this.channels[index].messages = updatedChannel.messages;
+                    // console.log("Updated channels list:", this.channels); // Debugging
+
+                    // Sort the channels by the last message timestamp
+                    this.channels = this.sortChannelsByLastMessage(
+                        this.channels
+                    );
+
+                    // console.log("Sorted channels list:", this.channels); // Debugging
+                }
             });
 
             // Listen for incoming messages and add them to messages array

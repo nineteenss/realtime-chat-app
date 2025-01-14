@@ -1,5 +1,12 @@
 <template>
-    <div class="flex items-center p-2 hover:bg-gray-100 cursor-pointer">
+    <div
+        :class="[
+            'flex items-center p-2 transition-colors duration-200 cursor-pointer',
+            isActive
+                ? 'bg-gray-300 border-r-4 border-blue-500'
+                : 'hover:bg-gray-200',
+        ]"
+    >
         <!-- Circle with initials -->
         <div
             class="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold"
@@ -10,11 +17,20 @@
 
         <!-- Channel name and last message/typing -->
         <div class="ml-3 flex-1 min-w-0">
-            <div class="font-semibold truncate">{{ channel.name }}</div>
+            <div
+                class="font-semibold truncate flex flex-row items-center gap-1"
+            >
+                <div
+                    class="uppercase text-[10px]/[9px] text-white bg-slate-500 px-1.5 py-1 rounded-full flex font-bold"
+                >
+                    Channel
+                </div>
+                {{ channel.name }}
+            </div>
             <div class="text-sm text-gray-600 truncate">
                 <!-- Show typing notification if someone is typing in this channel -->
                 <template v-if="isTypingInThisChannel">
-                    {{ typingText }}
+                    <p class="text-blue-500">{{ typingText }}</p>
                 </template>
                 <!-- Otherwise, show the last message -->
                 <template v-else>
@@ -26,8 +42,10 @@
 </template>
 
 <script setup>
+// Imports
 import { computed } from "vue";
 
+// Component props
 const props = defineProps({
     channel: {
         type: Object,
@@ -37,8 +55,13 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    isActive: {
+        type: Boolean,
+        default: false,
+    },
 });
 
+// Variables
 // Get the first two letters of the channel name
 const channelInitials = computed(() => {
     return props.channel.name
@@ -78,15 +101,6 @@ const typingText = computed(() => {
 const lastMessageText = computed(() => {
     const lastMessage =
         props.channel.messages[props.channel.messages.length - 1];
-    if (lastMessage) {
-        return lastMessage.content.length > 30
-            ? lastMessage.content.substring(0, 30) + "..."
-            : lastMessage.content;
-    }
-    return "No messages yet";
+    return lastMessage ? lastMessage.content : "No messages yet";
 });
 </script>
-
-<style scoped>
-/* Add any custom styles here */
-</style>

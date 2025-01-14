@@ -12,6 +12,7 @@ const channelSchema = new mongoose.Schema({
     // Added 'minLength: 3', 'maxLength: 50' to the name field
     // To ensure that the name is at least 3 characters long and not more than 50 characters
     name: { type: String, required: true, minlength: 3, maxlength: 50 },
+    description: { type: String, minlength: 3, maxlength: 300 },
     creator: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     messages: [

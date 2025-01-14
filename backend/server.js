@@ -345,8 +345,8 @@ class ChatServer {
     }
 
     setupSocketEvents() {
-        const onlineUsers = {}; // Track online users
-        const typingUsers = {}; // Track typing users for each channel
+        const onlineUsers = {}; // Track online users: { userId: socket.id }
+        const typingUsers = {}; // Track typing users: { channelId: Set<username> }
 
         // Handle new client connections
         this.io.on("connection", (socket) => {
@@ -354,10 +354,10 @@ class ChatServer {
 
             // Add user to onlineUsers when they connect
             socket.on("user-online", (userId) => {
-                onlineUsers[userId] = socket.id; // Map users to the socket.id
+                onlineUsers[userId] = socket.id; // Map userId to socket.id
                 console.log("User online:", userId);
-                // Broadcast updated list
-                this.io.emit("update-online-users", Object.keys(onlineUsers));
+                console.log("Online users:", onlineUsers); // Debugging
+                this.io.emit("update-online-users", Object.keys(onlineUsers)); // Broadcast updated list
             });
 
             // Handle channel join requests
@@ -392,7 +392,8 @@ class ChatServer {
                         timestamp: new Date(),
                     };
 
-                    await Channel.findByIdAndUpdate(
+                    // Update the channel with the new message
+                    const updatedChannel = await Channel.findByIdAndUpdate(
                         channelId,
                         {
                             $push: {
@@ -409,6 +410,9 @@ class ChatServer {
                         sender: { _id: userId, username: user.username },
                         timestamp: new Date(),
                     });
+
+                    // Emit an event to update the channels list
+                    this.io.emit("update-channels", updatedChannel);
                 } catch (error) {
                     console.error("Error sending message:", error);
                 }
@@ -425,7 +429,7 @@ class ChatServer {
 
                 typingUsers[channelId].add(username);
 
-                // Fetch the channel to get it's members
+                // Fetch the channel to get its members
                 const channel = await Channel.findById(channelId).populate(
                     "members",
                     "_id"
@@ -436,7 +440,7 @@ class ChatServer {
                     return;
                 }
 
-                // Broadcast the updated typing list to the channel
+                // Broadcast the updated typing list to all members of the channel
                 channel.members.forEach((member) => {
                     const memberSocketId = onlineUsers[member._id];
 
@@ -447,11 +451,6 @@ class ChatServer {
                         });
                     }
                 });
-
-                // this.io.emit("user-typing", {
-                //     channelId,
-                //     typingUsers: Array.from(typingUsers[channelId]),
-                // });
             });
 
             // Handle message stop typing indicator
@@ -462,7 +461,7 @@ class ChatServer {
                 if (typingUsers[channelId]) {
                     typingUsers[channelId].delete(username);
 
-                    // Fetch the channel to get it's members
+                    // Fetch the channel to get its members
                     const channel = await Channel.findById(channelId).populate(
                         "members",
                         "_id"
@@ -473,7 +472,7 @@ class ChatServer {
                         return;
                     }
 
-                    // Broadcast the updated typing list to the channel
+                    // Broadcast the updated typing list to all members of the channel
                     channel.members.forEach((member) => {
                         const memberSocketId = onlineUsers[member._id];
 
@@ -484,11 +483,6 @@ class ChatServer {
                             });
                         }
                     });
-
-                    // this.io.emit("user-typing", {
-                    //     channelId,
-                    //     typingUsers: Array.from(typingUsers[channelId]),
-                    // });
                 }
             });
 
@@ -505,7 +499,7 @@ class ChatServer {
                     this.io.emit(
                         "update-online-users",
                         Object.keys(onlineUsers)
-                    );
+                    ); // Broadcast updated list
                 }
 
                 console.log("User disconnected:", socket.id);

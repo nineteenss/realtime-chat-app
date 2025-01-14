@@ -1,7 +1,9 @@
 <template>
     <div class="flex h-screen">
         <!-- Left Column (Channels List) -->
-        <div class="flex flex-col min-w-[300px] w-1/4 bg-gray-100 p-4">
+        <div
+            class="flex flex-col min-w-[300px] max-w-[400px] w-1/4 bg-gray-100 p-4"
+        >
             <!-- Channels Row -->
             <div class="mb-4">
                 <h3 class="text-lg font-semibold">Channels</h3>
@@ -22,49 +24,19 @@
                 <p class="mt-2 text-sm text-gray-600">
                     Click on the channel below to join or enter
                 </p>
-                <div class="mt-2 space-y-2">
+                <div class="mt-2 space-y-0 rounded-lg overflow-hidden">
                     <ChannelItem
                         v-for="channel in chatStore.channels"
                         :key="channel._id"
                         :channel="channel"
                         :typing-users="chatStore.typingUsers"
                         :active-channel-id="chatStore.currentChannel?._id"
+                        :is-active="
+                            chatStore.currentChannel?._id === channel._id
+                        "
                         @click="selectChannel(channel._id)"
                     />
                 </div>
-                <!-- <div
-                    v-for="channel in chatStore.channels"
-                    :key="channel._id + authStore.user.id"
-                    class="mt-2"
-                >
-                    <div
-                        @click="selectChannel(channel._id)"
-                        class="border border-gray-300 px-4 py-2 rounded cursor-pointer hover:bg-gray-200 transition-colors"
-                    >
-                        {{ channel.name }}
-                        ({{ channel.members.length }} members)
-                    </div>
-                    <button
-                        @click="leaveChannel(channel._id)"
-                        v-if="
-                            channel.members.some(
-                                (member) =>
-                                    member._id &&
-                                    member._id.toString() === authStore.user.id
-                            )
-                        "
-                        class="btn bg-red-500 text-white px-2 py-1 rounded mt-1 hover:bg-red-600"
-                    >
-                        Leave channel
-                    </button>
-                    <button
-                        @click="removeChannel(channel._id)"
-                        v-if="channel.creator._id === authStore.user.id"
-                        class="btn bg-red-500 text-white px-2 py-1 rounded mt-1 hover:bg-red-600"
-                    >
-                        Delete Channel
-                    </button>
-                </div> -->
             </div>
 
             <!-- PM Row -->
@@ -97,61 +69,31 @@
                 <!-- Scrollable Top Row -->
                 <div
                     ref="messagesContainer"
-                    class="flex-1 overflow-y-auto mb-4"
+                    class="flex-1 overflow-y-auto mb-4 space-y-0.5"
                 >
-                    <div class="space-y-2">
-                        <!-- Group messages by sender -->
+                    <div
+                        v-for="(message, index) in chatStore.messages"
+                        :key="message.timestamp"
+                    >
+                        <!-- Date separator -->
                         <div
-                            v-for="(message, index) in chatStore.messages"
-                            :key="message.timestamp"
-                            :class="[
-                                'flex',
-                                message.sender._id.toString() ===
-                                authStore.user.id.toString()
-                                    ? 'justify-end'
-                                    : 'justify-start',
-                            ]"
+                            v-if="shouldShowDateSeparator(index)"
+                            class="flex items-center my-4"
                         >
-                            <div
-                                :class="[
-                                    'p-2 rounded max-w-[70%]',
-                                    message.sender._id.toString() ===
-                                    authStore.user.id.toString()
-                                        ? 'bg-blue-500 text-white'
-                                        : 'bg-gray-200',
-                                ]"
-                            >
-                                <!-- Show sender's name only if it's a new sender or the first message -->
-                                <div
-                                    v-if="
-                                        index === 0 ||
-                                        chatStore.messages[
-                                            index - 1
-                                        ].sender._id.toString() !==
-                                            message.sender._id.toString()
-                                    "
-                                    class="text-sm font-semibold mb-1"
-                                >
-                                    {{ message.sender.username }}
-                                </div>
-                                <p>{{ message.content }}</p>
-                                <small
-                                    :class="[
-                                        'block text-xs mt-1',
-                                        message.sender._id.toString() ===
-                                        authStore.user.id.toString()
-                                            ? 'text-white'
-                                            : 'text-gray-600',
-                                    ]"
-                                >
-                                    {{
-                                        new Date(
-                                            message.timestamp
-                                        ).toLocaleTimeString()
-                                    }}
-                                </small>
+                            <div class="flex-1 border-t border-gray-200"></div>
+                            <div class="mx-4 text-sm text-gray-500">
+                                {{ formatDateSeparator(message.timestamp) }}
                             </div>
+                            <div class="flex-1 border-t border-gray-200"></div>
                         </div>
+
+                        <!-- Chat bubble -->
+                        <ChannelChatBubble
+                            :message="message"
+                            :auth-store="authStore"
+                            :chat-store="chatStore"
+                            :index="index"
+                        />
                     </div>
                 </div>
 
@@ -193,11 +135,11 @@
             <div class="mb-4">
                 <h3 class="text-lg font-semibold">Channel Info</h3>
                 <div v-if="chatStore.currentChannel">
-                    <h4 class="text-lg font-medium">
-                        {{ chatStore.currentChannel.name }}
-                    </h4>
-                    <p class="text-xs text-gray-400">
-                        {{ chatStore.currentChannel._id }}
+                    <p class="text-sm text-gray-600">
+                        {{
+                            chatStore.currentChannel.description ||
+                            "No description available."
+                        }}
                     </p>
                 </div>
                 <div v-else>
@@ -243,6 +185,7 @@
 <script setup>
 // Components imports
 import ChannelItem from "~/components/ChannelItem.vue";
+import ChannelChatBubble from "~/components/ChannelChatBubble.vue";
 
 // Imports
 import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
@@ -405,9 +348,54 @@ function formatTypingNotification(typingUsers) {
     return "";
 }
 
-// Helper function to get typing users for a specific channel
-function getTypingUsersForChannel(channelId) {
-    return chatStore.typingUsers.filter((user) => user.channelId === channelId);
+// // Helper function to get typing users for a specific channel
+// function getTypingUsersForChannel(channelId) {
+//     return chatStore.typingUsers.filter((user) => user.channelId === channelId);
+// }
+
+// // Helper function to check if a message is grouped with the previous one
+// function isGroupedWithPrevious(index) {
+//     if (index === 0) return false; // First message cannot be grouped
+//     const currentMessage = chatStore.messages[index];
+//     const previousMessage = chatStore.messages[index - 1];
+//     return (
+//         currentMessage.sender._id === previousMessage.sender._id &&
+//         new Date(currentMessage.timestamp) -
+//             new Date(previousMessage.timestamp) <
+//             5 * 60 * 1000 // 5 minutes
+//     );
+// }
+
+// Helper function to check if a date separator should be shown
+function shouldShowDateSeparator(index) {
+    if (index === 0) return true; // Always show for the first message
+    const currentDate = new Date(
+        chatStore.messages[index].timestamp
+    ).toDateString();
+    const previousDate = new Date(
+        chatStore.messages[index - 1].timestamp
+    ).toDateString();
+    return currentDate !== previousDate;
+}
+
+// Helper function to format the date separator
+function formatDateSeparator(timestamp) {
+    const messageDate = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (messageDate.toDateString() === today.toDateString()) {
+        return "Today";
+    } else if (messageDate.toDateString() === yesterday.toDateString()) {
+        return "Yesterday";
+    } else {
+        return messageDate.toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+        });
+    }
 }
 
 // Watchers
