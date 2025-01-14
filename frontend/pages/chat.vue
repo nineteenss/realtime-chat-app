@@ -22,7 +22,17 @@
                 <p class="mt-2 text-sm text-gray-600">
                     Click on the channel below to join or enter
                 </p>
-                <div
+                <div class="mt-2 space-y-2">
+                    <ChannelItem
+                        v-for="channel in chatStore.channels"
+                        :key="channel._id"
+                        :channel="channel"
+                        :typing-users="chatStore.typingUsers"
+                        :active-channel-id="chatStore.currentChannel?._id"
+                        @click="selectChannel(channel._id)"
+                    />
+                </div>
+                <!-- <div
                     v-for="channel in chatStore.channels"
                     :key="channel._id + authStore.user.id"
                     class="mt-2"
@@ -54,7 +64,7 @@
                     >
                         Delete Channel
                     </button>
-                </div>
+                </div> -->
             </div>
 
             <!-- PM Row -->
@@ -69,10 +79,10 @@
                 <!-- Header with Room Title and Members Count -->
                 <div class="border-b border-gray-200 pb-4 mb-4">
                     <h2 class="text-xl font-semibold">
-                        {{ chatStore.currentChannel }}
+                        {{ chatStore.currentChannel.name }}
                     </h2>
                     <div class="text-sm text-gray-600 flex flex-row">
-                        Members online.&nbsp;
+                        {{ onlineMembersCount }} members online.&nbsp;
                         <p
                             v-if="chatStore.typingUsers.length > 0"
                             class="text-sm text-gray-600"
@@ -85,18 +95,62 @@
                 </div>
 
                 <!-- Scrollable Top Row -->
-                <div class="flex-1 overflow-y-auto mb-4">
+                <div
+                    ref="messagesContainer"
+                    class="flex-1 overflow-y-auto mb-4"
+                >
                     <div class="space-y-2">
+                        <!-- Group messages by sender -->
                         <div
-                            v-for="message in chatStore.messages"
+                            v-for="(message, index) in chatStore.messages"
                             :key="message.timestamp"
-                            class="p-2 bg-gray-200 rounded max-w-max"
+                            :class="[
+                                'flex',
+                                message.sender._id.toString() ===
+                                authStore.user.id.toString()
+                                    ? 'justify-end'
+                                    : 'justify-start',
+                            ]"
                         >
-                            <strong>{{ message.sender.username }}</strong>
-                            <p>{{ message.content }}</p>
-                            <small class="text-gray-600">{{
-                                new Date(message.timestamp).toLocaleString()
-                            }}</small>
+                            <div
+                                :class="[
+                                    'p-2 rounded max-w-[70%]',
+                                    message.sender._id.toString() ===
+                                    authStore.user.id.toString()
+                                        ? 'bg-blue-500 text-white'
+                                        : 'bg-gray-200',
+                                ]"
+                            >
+                                <!-- Show sender's name only if it's a new sender or the first message -->
+                                <div
+                                    v-if="
+                                        index === 0 ||
+                                        chatStore.messages[
+                                            index - 1
+                                        ].sender._id.toString() !==
+                                            message.sender._id.toString()
+                                    "
+                                    class="text-sm font-semibold mb-1"
+                                >
+                                    {{ message.sender.username }}
+                                </div>
+                                <p>{{ message.content }}</p>
+                                <small
+                                    :class="[
+                                        'block text-xs mt-1',
+                                        message.sender._id.toString() ===
+                                        authStore.user.id.toString()
+                                            ? 'text-white'
+                                            : 'text-gray-600',
+                                    ]"
+                                >
+                                    {{
+                                        new Date(
+                                            message.timestamp
+                                        ).toLocaleTimeString()
+                                    }}
+                                </small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -139,12 +193,11 @@
             <div class="mb-4">
                 <h3 class="text-lg font-semibold">Channel Info</h3>
                 <div v-if="chatStore.currentChannel">
-                    <h4 class="text-md font-medium">
+                    <h4 class="text-lg font-medium">
                         {{ chatStore.currentChannel.name }}
-                        Channel Name
                     </h4>
-                    <p class="text-sm text-gray-600">
-                        ID: {{ chatStore.currentChannel }}
+                    <p class="text-xs text-gray-400">
+                        {{ chatStore.currentChannel._id }}
                     </p>
                 </div>
                 <div v-else>
@@ -165,7 +218,7 @@
                         :key="member._id"
                         class="p-2 bg-white rounded shadow-sm"
                     >
-                        {{ member.username }}
+                        {{ member }}
                     </div>
                 </div>
                 <div v-else>
@@ -189,9 +242,10 @@
 
 <script setup>
 // Components imports
+import ChannelItem from "~/components/ChannelItem.vue";
 
 // Imports
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { useChatStore } from "../stores/chat";
 import { useAuthStore } from "../stores/auth";
 
@@ -211,11 +265,32 @@ const authStore = useAuthStore();
 const newMessage = ref("");
 const newChannelName = ref("");
 const typingTimeout = ref(null);
+const messagesContainer = ref(null); // Ref for the messages container
+const onlineMembersCount = computed(() => {
+    if (!chatStore.currentChannel) return 0;
+
+    // Filter online users who are members of the current channel
+    return chatStore.onlineUsers.filter((userId) =>
+        chatStore.currentChannel.members.includes(userId)
+    ).length;
+});
 
 // Lifecycle hooks
-onMounted(() => {
+onMounted(async () => {
+    // Wait for the DOM to be fully rendered
+    await nextTick();
+
+    // Bind the messagesContainer ref to the store
+    chatStore.messagesContainer = messagesContainer.value;
+
+    // Initialize socket and fetch channels
     chatStore.initSocket();
     chatStore.listenForTypingNotifications();
+
+    // Scroll to the bottom when the component is mounted
+    if (chatStore.currentChannel) {
+        chatStore.scrollToBottom();
+    }
 });
 
 onUnmounted(() => {
@@ -223,6 +298,11 @@ onUnmounted(() => {
     if (typingTimeout.value) {
         clearTimeout(typingTimeout.value);
     }
+});
+
+// Watcher to update messagesContainer in the store
+watch(messagesContainer, (newContainer) => {
+    chatStore.messagesContainer = newContainer;
 });
 
 // Functions
@@ -254,6 +334,11 @@ async function selectChannel(channelId) {
         // Join the selected channel and fetch messages
         await chatStore.joinChannel(channelId);
         await chatStore.fetchMessages(channelId);
+
+        // Scroll to the bottom after joining the channel
+        if (chatStore.currentChannel) {
+            chatStore.scrollToBottom();
+        }
     } catch (error) {
         console.error("Error joining channel:", error);
         alert("Error joining channel");
@@ -274,7 +359,12 @@ function sendMessage() {
     if (newMessage.value.trim()) {
         // Send the message
         chatStore.sendMessage(newMessage.value);
-        newMessage.value = "";
+        newMessage.value = ""; // Clear the input field
+
+        // Scroll to the bottom after sending the message
+        if (chatStore.currentChannel) {
+            chatStore.scrollToBottom();
+        }
     }
 }
 
@@ -298,19 +388,36 @@ function handleInput() {
 }
 
 function formatTypingNotification(typingUsers) {
-    if (typingUsers.length === 1) {
-        return `${typingUsers[0]} is typing...`;
-    } else if (typingUsers.length === 2) {
-        return `${typingUsers[0]} and ${typingUsers[1]} are typing...`;
-    } else if (typingUsers.length > 2) {
-        return `${typingUsers[0]}, ${typingUsers[1]} and ${
-            typingUsers.length - 2
+    // Extract usernames from the typingUsers array
+    const usernames = typingUsers
+        .filter((user) => user.channelId === chatStore.currentChannel._id)
+        .map((user) => user.username);
+
+    if (usernames.length === 1) {
+        return `${usernames[0]} is typing...`;
+    } else if (usernames.length === 2) {
+        return `${usernames[0]} and ${usernames[1]} are typing...`;
+    } else if (usernames.length > 2) {
+        return `${usernames[0]}, ${usernames[1]} and ${
+            usernames.length - 2
         } more are typing...`;
     }
     return "";
 }
 
-// Computed properties (if needed)
+// Helper function to get typing users for a specific channel
+function getTypingUsersForChannel(channelId) {
+    return chatStore.typingUsers.filter((user) => user.channelId === channelId);
+}
 
-// Watchers (if needed)
+// Watchers
+watch(
+    () => chatStore.messages, // Watch for changes in the messages array
+    () => {
+        if (chatStore.currentChannel) {
+            chatStore.scrollToBottom();
+        }
+    },
+    { deep: true }
+);
 </script>

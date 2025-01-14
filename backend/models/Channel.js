@@ -21,6 +21,7 @@ const channelSchema = new mongoose.Schema({
             timestamp: { type: Date, default: Date.now },
         },
     ],
+    color: { type: String, default: "#000000" }, // Store random color for channel icon
 });
 
 export default mongoose.model("Channel", channelSchema);

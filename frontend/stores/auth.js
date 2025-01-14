@@ -78,6 +78,7 @@ export const useAuthStore = defineStore("auth", {
                 this.token = data.token;
                 this.user = data.user;
 
+                console.log("Login successful. Token:", this.token);
                 return data;
             } catch (error) {
                 throw error;
