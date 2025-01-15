@@ -104,6 +104,9 @@ class ChatServer {
                     }
                 );
 
+                // Emit an event to update the "all users" list
+                this.io.emit("update-users", await User.find({}, "username"));
+
                 res.status(201).json({
                     token,
                     user: { id: user._id, username },
@@ -429,6 +432,7 @@ class ChatServer {
 
             // Handle channel join requests
             socket.on("join-channel", async (channelId) => {
+                console.log(`User ${socket.id} joining channel ${channelId}`); // Debugging
                 socket.join(channelId);
                 console.log(`User ${socket.id} joined channel ${channelId}`);
 
@@ -452,8 +456,9 @@ class ChatServer {
 
             // Handle channel leave requests
             socket.on("leave-channel", (channelId) => {
+                console.log(`User ${socket.id} leaving channel ${channelId}`); // Debugging
                 socket.leave(channelId);
-                console.log(`User ${socket.id} left channel ${channelId}`);
+                console.log(`User ${socket.id} left channel ${channelId}`); // Debugging
 
                 // Broadcast the updated channel to all clients
                 Channel.findById(channelId)

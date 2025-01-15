@@ -41,16 +41,14 @@
         <ChatMembersList :chat-store="chatStore" />
 
         <!-- Leave Channel Button (Pinned to Bottom) -->
-        <template v-if="chatStore.currentChannel">
-            <div class="mt-auto pt-4">
-                <button
-                    @click="leaveChannel"
-                    class="w-full btn bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-                >
-                    Leave Channel
-                </button>
-            </div>
-        </template>
+        <div v-if="isChannelMember" class="mt-auto pt-4">
+            <button
+                @click="leaveChannel"
+                class="w-full btn bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+            >
+                Leave Channel
+            </button>
+        </div>
     </div>
 </template>
 
@@ -62,6 +60,7 @@ const {
     chatStore,
     confirmDelete,
     isChannelCreator,
+    isChannelMember,
     deleteChannel,
     leaveChannel,
 } = initializeStores();

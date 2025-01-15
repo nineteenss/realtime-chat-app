@@ -16,8 +16,10 @@
             <div
                 v-for="member in filteredMembers"
                 :key="member._id"
-                class="p-2 bg-white hover:bg-gray-50 transition-colors duration-200 rounded-md shadow-sm flex items-center gap-3"
+                class="p-2 bg-white hover:bg-gray-50 transition-colors duration-200 rounded-md flex items-center gap-3 relative"
             >
+                <ChannelKickButton />
+
                 <!-- Circle with Initial -->
                 <div
                     class="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold"
@@ -30,9 +32,15 @@
                 <!-- Username and Online Status -->
                 <div class="flex-1 min-w-0">
                     <div class="flex flex-row relative">
-                        <p class="font-semibold truncate">
+                        <div
+                            class="font-semibold truncate flex flex-row items-center gap-2"
+                        >
                             {{ member.username || "Unknown User" }}
-                        </p>
+                            <div
+                                v-if="isUserSelf(member._id)"
+                                class="w-2 h-2 bg-blue-500 rounded-full"
+                            ></div>
+                        </div>
                         <p
                             v-if="isChannelCreator(member._id)"
                             class="uppercase text-[10px]/[23px] text-orange-500 font-bold absolute right-0 mr-1"
@@ -63,6 +71,7 @@
 
 <script setup>
 import initializeStores from "~/composables/chat-logic.js";
+import ChannelKickButton from "./ChannelKickButton.vue";
 
 const props = defineProps({
     chatStore: {
@@ -71,8 +80,13 @@ const props = defineProps({
     },
 });
 
-const { isUserOnline, searchQuery, filteredMembers, stringToColor } =
-    initializeStores();
+const {
+    isUserOnline,
+    searchQuery,
+    filteredMembers,
+    stringToColor,
+    isChannelMember,
+} = initializeStores();
 
 // Check if the sender is the channel creator
 const isChannelCreator = (senderId) => {
@@ -80,5 +94,11 @@ const isChannelCreator = (senderId) => {
         props.chatStore.currentChannel?.creator?._id ||
         props.chatStore.currentChannel?.creator;
     return creatorId === senderId;
+};
+
+// Check if the user is the current user
+const isUserSelf = (senderId) => {
+    const authStore = useAuthStore();
+    return senderId === authStore.user.id;
 };
 </script>

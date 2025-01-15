@@ -54,11 +54,10 @@
                 <!-- Blurred Overlay for Non-Members -->
                 <div
                     v-if="!isChannelMember"
-                    class="absolute inset-0 bg-white bg-opacity-60 backdrop-blur-sm flex flex-col items-center justify-center z-10"
+                    class="absolute inset-0 bg-white bg-opacity-30 backdrop-blur-sm flex flex-col items-center justify-center z-10"
                 >
                     <p class="text-gray-500 text-lg mb-4">
-                        You have to join the channel to see its content and
-                        participate.
+                        Join channel to start a conversation.
                     </p>
                     <button
                         @click="joinChannel"
@@ -69,20 +68,30 @@
                 </div>
 
                 <!-- Header with Room Title and Members Count -->
-                <div class="border-b border-gray-200 pb-4 mb-4">
-                    <h2 class="text-xl font-semibold">
-                        {{ chatStore.currentChannel.name }}
-                    </h2>
-                    <div class="text-sm text-gray-600 flex flex-row">
-                        {{ onlineMembersCount }} members online.&nbsp;
-                        <p
-                            v-if="chatStore.typingUsers.length > 0"
-                            class="text-sm text-blue-500"
-                        >
-                            {{
-                                formatTypingNotification(chatStore.typingUsers)
-                            }}
-                        </p>
+                <div
+                    class="border-b border-gray-200 pb-4 mb-4 flex flex-row relative"
+                >
+                    <Icon
+                        name="proicons:hash"
+                        class="w-5 h-5 bg-gray-400 absolute top-1"
+                    />
+                    <div class="ml-7">
+                        <h2 class="text-xl font-semibold">
+                            {{ chatStore.currentChannel.name }}
+                        </h2>
+                        <div class="text-sm text-gray-600 flex flex-row">
+                            {{ onlineMembersCount }} members online.&nbsp;
+                            <p
+                                v-if="chatStore.typingUsers.length > 0"
+                                class="text-sm text-blue-500"
+                            >
+                                {{
+                                    formatTypingNotification(
+                                        chatStore.typingUsers
+                                    )
+                                }}
+                            </p>
+                        </div>
                     </div>
                 </div>
 
@@ -90,7 +99,7 @@
                 <div
                     v-if="isChannelMember"
                     ref="messagesContainer"
-                    class="flex-1 overflow-y-auto mb-4 space-y-0.5"
+                    class="flex-1 overflow-y-auto mb-4 px-1 space-y-0.5"
                 >
                     <div
                         v-for="(message, index) in chatStore.messages"
@@ -221,25 +230,65 @@ onMounted(async () => {
     // Fetch all registered users
     chatStore.fetchAllMembers();
 
+    // Check localStorage for the current channel ID
+    const currentChannelId = localStorage.getItem("currentChannelId");
+
     // Scroll to the bottom when the component is mounted
     // Automatically re-join the current channel if it exists
-    if (chatStore.currentChannel) {
+    if (currentChannelId) {
         try {
-            await chatStore.joinChannel(chatStore.currentChannel._id);
-            await chatStore.fetchMessages(chatStore.currentChannel._id);
-            chatStore.scrollToBottom();
+            // Fetch the channel details
+            const channel = await chatStore.fetchChannelDetails(
+                currentChannelId
+            );
+            chatStore.currentChannel = channel;
+
+            // Re-join the Socket.IO room for the current channel
+            if (chatStore.socket) {
+                chatStore.socket.emit("join-channel", currentChannelId);
+            }
+
+            // Check if the user is a member of the channel
+            if (
+                chatStore.currentChannel.members.some(
+                    (member) => member._id === authStore.user.id
+                )
+            ) {
+                // Fetch messages for the current channel
+                await chatStore.fetchMessages(currentChannelId);
+                chatStore.scrollToBottom();
+            }
         } catch (error) {
-            console.error("Error re-joining channel:", error);
-            chatStore.currentChannel = null; // Reset currentChannel if re-joining fails
-        }
-    } else {
-        // If no channel is selected, fetch the first channel (optional)
-        if (chatStore.channels.length > 0) {
-            await chatStore.joinChannel(chatStore.channels[0]._id);
-            await chatStore.fetchMessages(chatStore.channels[0]._id);
-            chatStore.scrollToBottom();
+            console.error("Error restoring channel:", error);
+            localStorage.removeItem("currentChannelId"); // Clear invalid channel ID
+            chatStore.currentChannel = null;
         }
     }
+
+    // If no channel is selected, fetch the first channel (optional)
+    if (!chatStore.currentChannel && chatStore.channels.length > 0) {
+        await chatStore.joinChannel(chatStore.channels[0]._id);
+        await chatStore.fetchMessages(chatStore.channels[0]._id);
+        chatStore.scrollToBottom();
+    }
+
+    // if (chatStore.currentChannel) {
+    //     try {
+    //         await chatStore.joinChannel(chatStore.currentChannel._id);
+    //         await chatStore.fetchMessages(chatStore.currentChannel._id);
+    //         chatStore.scrollToBottom();
+    //     } catch (error) {
+    //         console.error("Error re-joining channel:", error);
+    //         chatStore.currentChannel = null; // Reset currentChannel if re-joining fails
+    //     }
+    // } else {
+    //     // If no channel is selected, fetch the first channel (optional)
+    //     if (chatStore.channels.length > 0) {
+    //         await chatStore.joinChannel(chatStore.channels[0]._id);
+    //         await chatStore.fetchMessages(chatStore.channels[0]._id);
+    //         chatStore.scrollToBottom();
+    //     }
+    // }
 
     // console.log("Current Channel (onMounted):", chatStore.currentChannel); // Debugging
     // console.log("Members (onMounted):", chatStore.currentChannel?.members); // Debugging

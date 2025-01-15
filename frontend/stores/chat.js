@@ -84,6 +84,12 @@ export const useChatStore = defineStore("chat", {
                 },
             });
 
+            // Re-join the current channel room if it exists
+            const currentChannelId = localStorage.getItem("currentChannelId");
+            if (currentChannelId && this.socket) {
+                this.socket.emit("join-channel", currentChannelId);
+            }
+
             // Initialize onlineUsers as an empty array
             this.onlineUsers = [];
 
@@ -94,6 +100,11 @@ export const useChatStore = defineStore("chat", {
             this.socket.on("update-online-users", (onlineUserIds) => {
                 this.onlineUsers = onlineUserIds;
                 // console.log("Online users:", this.onlineUsers); // Debugging
+            });
+
+            // Listen for updates to the "all users" list
+            this.socket.on("update-users", (users) => {
+                this.allMembers = users; // Update the allMembers array
             });
 
             // Listen for updates to the channels list
@@ -173,8 +184,10 @@ export const useChatStore = defineStore("chat", {
 
             // Listen for incoming messages and add them to messages array
             this.socket.on("receive-message", async (message) => {
+                console.log("Received message:", message); // Debugging
                 // Add the new message to the messages array
                 this.messages.push(message);
+                console.log("Updated messages array:", this.messages); // Debugging
 
                 // Wait for the DOM to update before scrolling
                 await nextTick();
@@ -307,6 +320,9 @@ export const useChatStore = defineStore("chat", {
                 if (!channel._id) {
                     throw new Error("Channel ID is undefined");
                 }
+
+                // Set the current channel in localStorage
+                localStorage.setItem("currentChannelId", channel._id);
 
                 // Add the new channel to the list
                 // this.channels.push(channel);

@@ -36,7 +36,7 @@
                 {{ channel.name }}
             </div>
             <div
-                class="text-sm text-gray-600 truncate flex flex-row items-end gap-1 relative"
+                class="text-sm text-gray-600 truncate flex flex-row items-end gap-1 relative overflow-hidden"
             >
                 <!-- Show typing notification if someone is typing in this channel -->
                 <template v-if="isTypingInThisChannel">

@@ -87,12 +87,32 @@ const initializeStores = () => {
 
     const selectChannel = async (channelId) => {
         try {
+            // Leave the previous channel room
+            if (chatStore.currentChannel) {
+                chatStore.socket.emit(
+                    "leave-channel",
+                    chatStore.currentChannel._id
+                );
+            }
+
+            // Clear the messages array when switching channels
+            chatStore.messages = [];
+
             // Fetch the channel details without joining
             const channel = await chatStore.fetchChannelDetails(channelId);
-            chatStore.currentChannel = channel; // Setting current channel
+            chatStore.currentChannel = channel; // Set the current channel
+
+            // Emit the join-channel event to the backend
+            chatStore.socket.emit("join-channel", channelId);
+
+            // Save the current channel ID to localStorage
+            localStorage.setItem("currentChannelId", channelId);
+
+            // Fetch messages for the new channel
+            await chatStore.fetchMessages(channelId);
         } catch (error) {
-            console.error("Error joining channel:", error);
-            alert("Error joining channel");
+            console.error("Error selecting channel:", error);
+            alert("Error selecting channel");
         }
     };
 
@@ -102,6 +122,12 @@ const initializeStores = () => {
                 await chatStore.joinChannel(chatStore.currentChannel._id);
                 await chatStore.fetchMessages(chatStore.currentChannel._id);
                 chatStore.scrollToBottom();
+
+                // Save the current channel ID to localStorage
+                localStorage.setItem(
+                    "currentChannelId",
+                    chatStore.currentChannel._id
+                );
             } catch (error) {
                 console.error("Error joining channel:", error);
                 alert("Failed to join channel.");
@@ -113,6 +139,7 @@ const initializeStores = () => {
         if (chatStore.currentChannel) {
             try {
                 await chatStore.leaveChannel(chatStore.currentChannel._id);
+                localStorage.removeItem("currentChannelId"); // Clear the current channel ID
             } catch (error) {
                 console.error("Error leaving channel:", error);
                 alert("Failed to leave channel.");
