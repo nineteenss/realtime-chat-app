@@ -6,10 +6,10 @@
             </h2>
             <form @submit.prevent="handleSubmit">
                 <!-- Username Input -->
+                <p v-if="usernameError" class="text-red-500 text-xs">
+                    {{ usernameError }}
+                </p>
                 <div class="mb-0.5">
-                    <p v-if="usernameError" class="text-red-500 text-xs">
-                        {{ usernameError }}
-                    </p>
                     <input
                         v-model="username"
                         type="text"
@@ -20,10 +20,10 @@
                 </div>
 
                 <!-- Password Input -->
+                <p v-if="passwordError" class="text-red-500 text-xs">
+                    {{ passwordError }}
+                </p>
                 <div class="mb-1 relative">
-                    <p v-if="passwordError" class="text-red-500 text-xs">
-                        {{ passwordError }}
-                    </p>
                     <input
                         v-model="password"
                         :type="showPassword ? 'text' : 'password'"
