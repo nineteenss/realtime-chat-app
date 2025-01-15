@@ -1,15 +1,15 @@
 <template>
-    <div class="mb-4 flex flex-col h-full">
+    <div class="flex flex-col h-full">
         <!-- Render channel info if a channel is selected -->
         <template v-if="chatStore.currentChannel">
             <!-- Channel Description -->
             <div class="mb-4">
-                <ChannelTitles>Channel info</ChannelTitles>
+                <ChannelTitles icon="info">Channel info</ChannelTitles>
                 <div>
-                    <p class="text-sm text-gray-600">
+                    <p class="text-sm text-gray-500 font-light italic">
                         {{
                             chatStore.currentChannel.description ||
-                            "No description available."
+                            "No description."
                         }}
                     </p>
                 </div>
@@ -24,7 +24,7 @@
                         class="form-checkbox"
                     />
                     <span class="text-xs text-gray-700">
-                        I understand what I am doing by deleting this channel.
+                        Yes, I am sure that i want to delete this channel.
                     </span>
                 </label>
                 <button
@@ -38,16 +38,31 @@
         </template>
 
         <!-- Always render the members list -->
-        <!-- <ChatMembersListSearch /> -->
-        <ChatMembersList />
+        <ChatMembersList :chat-store="chatStore" />
+
+        <!-- Leave Channel Button (Pinned to Bottom) -->
+        <template v-if="chatStore.currentChannel">
+            <div class="mt-auto pt-4">
+                <button
+                    @click="leaveChannel"
+                    class="w-full btn bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                >
+                    Leave Channel
+                </button>
+            </div>
+        </template>
     </div>
 </template>
 
 <script setup>
 import ChannelTitles from "~/components/ChannelTitles.vue";
-import ChatMembersList from "~/components/ChatMembersList.vue";
 import initializeStores from "~/composables/chat-logic.js";
 
-const { chatStore, confirmDelete, isChannelCreator, deleteChannel } =
-    initializeStores();
+const {
+    chatStore,
+    confirmDelete,
+    isChannelCreator,
+    deleteChannel,
+    leaveChannel,
+} = initializeStores();
 </script>

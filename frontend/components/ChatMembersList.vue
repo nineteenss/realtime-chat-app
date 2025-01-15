@@ -2,12 +2,12 @@
     <div>
         <!-- Members List with Search -->
         <div class="mb-4">
-            <ChannelTitles>
+            <ChannelTitles icon="emoji">
                 {{ filteredMembers.length }} Members
             </ChannelTitles>
             <input
                 v-model="searchQuery"
-                placeholder="Search members..."
+                placeholder="Type to search members..."
                 class="w-full p-2 border rounded"
             />
         </div>
@@ -29,9 +29,18 @@
                 </div>
                 <!-- Username and Online Status -->
                 <div class="flex-1 min-w-0">
-                    <p class="font-semibold truncate">
-                        {{ member.username || "Unknown User" }}
-                    </p>
+                    <div class="flex flex-row relative">
+                        <p class="font-semibold truncate">
+                            {{ member.username || "Unknown User" }}
+                        </p>
+                        <p
+                            v-if="isChannelCreator(member._id)"
+                            class="uppercase text-[10px]/[23px] text-orange-500 font-bold absolute right-0 mr-1"
+                        >
+                            Owner
+                        </p>
+                    </div>
+
                     <p
                         :class="[
                             'text-sm font-normal',
@@ -55,6 +64,21 @@
 <script setup>
 import initializeStores from "~/composables/chat-logic.js";
 
+const props = defineProps({
+    chatStore: {
+        type: Object,
+        required: true,
+    },
+});
+
 const { isUserOnline, searchQuery, filteredMembers, stringToColor } =
     initializeStores();
+
+// Check if the sender is the channel creator
+const isChannelCreator = (senderId) => {
+    const creatorId =
+        props.chatStore.currentChannel?.creator?._id ||
+        props.chatStore.currentChannel?.creator;
+    return creatorId === senderId;
+};
 </script>

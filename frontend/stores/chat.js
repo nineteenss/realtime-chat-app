@@ -113,6 +113,22 @@ export const useChatStore = defineStore("chat", {
                 this.channels = this.sortChannelsByLastMessage(this.channels);
             });
 
+            this.socket.on("channel-deleted", (deletedChannelId) => {
+                // console.log("Channel deleted:", deletedChannelId); // Debugging
+
+                // Remove the deleted channel from the channels list
+                this.channels = this.channels.filter(
+                    (channel) => channel._id !== deletedChannelId
+                );
+
+                // If the deleted channel was the current channel, reset the UI
+                if (this.currentChannel?._id === deletedChannelId) {
+                    this.currentChannel = null;
+                    this.messages = [];
+                    navigateTo("/chat"); // Back to the base root
+                }
+            });
+
             // this.socket.on("update-channels", (updatedChannel) => {
             //     // console.log("Received update-channels event:", updatedChannel); // Debugging
             //     const index = this.channels.findIndex(
@@ -247,7 +263,7 @@ export const useChatStore = defineStore("chat", {
         },
 
         // Create a new chat channel
-        async createChannel(name) {
+        async createChannel(name, description) {
             const authStore = useAuthStore();
 
             if (!authStore.token) {
@@ -264,6 +280,7 @@ export const useChatStore = defineStore("chat", {
                     },
                     body: JSON.stringify({
                         name,
+                        description,
                         creatorId: authStore.user.id,
                     }),
                 });

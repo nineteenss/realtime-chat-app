@@ -19,6 +19,14 @@
         <div class="ml-3 flex-1 min-w-0">
             <div
                 class="font-semibold truncate flex flex-row items-center gap-1"
+                style="
+                    mask-image: linear-gradient(
+                        to left,
+                        transparent,
+                        25%,
+                        #000
+                    );
+                "
             >
                 <div
                     class="uppercase text-[10px]/[9px] text-white bg-slate-500 px-1.5 py-1 rounded-full flex font-bold"
@@ -27,10 +35,16 @@
                 </div>
                 {{ channel.name }}
             </div>
-            <div class="text-sm text-gray-600 truncate">
+            <div
+                class="text-sm text-gray-600 truncate flex flex-row items-end gap-1 relative"
+            >
                 <!-- Show typing notification if someone is typing in this channel -->
                 <template v-if="isTypingInThisChannel">
-                    <p class="text-blue-500">{{ typingText }}</p>
+                    <Icon
+                        name="svg-spinners:3-dots-bounce"
+                        class="bg-blue-500 absolute top-1"
+                    />
+                    <p class="text-blue-500 ml-5">{{ typingText }}</p>
                 </template>
                 <!-- Otherwise, show the last message -->
                 <template v-else>
@@ -86,13 +100,13 @@ const typingText = computed(() => {
         .map((user) => user.username);
 
     if (users.length === 1) {
-        return `${users[0]} is typing...`;
+        return `${users[0]} is typing`;
     } else if (users.length === 2) {
-        return `${users[0]} and ${users[1]} are typing...`;
+        return `${users[0]} and ${users[1]} are typing`;
     } else if (users.length > 2) {
         return `${users[0]}, ${users[1]} and ${
             users.length - 2
-        } more are typing...`;
+        } more are typing`;
     }
     return "";
 });

@@ -16,6 +16,7 @@ const initializeStores = () => {
 
     // Refs
     const newChannelName = ref("");
+    const newChannelDescription = ref("");
     const newMessage = ref("");
     const typingTimeout = ref(null);
     const messagesContainer = ref(null);
@@ -32,6 +33,7 @@ const initializeStores = () => {
         ).length;
     });
 
+    // Filter members based on search query
     const filteredMembers = computed(() => {
         const members = chatStore.currentChannel
             ? chatStore.currentChannel.members
@@ -39,7 +41,7 @@ const initializeStores = () => {
 
         if (!members) return [];
         return members
-            .filter((member) => member?.username)
+            .filter((member) => member?.username) // Filter out undefined/null members
             .filter((member) =>
                 member.username
                     .toLowerCase()
@@ -47,6 +49,7 @@ const initializeStores = () => {
             );
     });
 
+    // Check if the current user is the channel creator
     const isChannelCreator = computed(() => {
         return (
             chatStore.currentChannel?.creator?._id === authStore.user?.id ||
@@ -58,8 +61,14 @@ const initializeStores = () => {
     const createNewChannel = async () => {
         if (newChannelName.value.trim()) {
             try {
-                await chatStore.createChannel(newChannelName.value);
+                // Create a new channel
+                await chatStore.createChannel(
+                    newChannelName.value,
+                    newChannelDescription.value // Populating with description
+                );
+
                 newChannelName.value = "";
+                newChannelDescription.value = "";
             } catch (error) {
                 console.error("Error creating channel:", error);
                 alert("Error creating channel");
@@ -69,8 +78,11 @@ const initializeStores = () => {
 
     const selectChannel = async (channelId) => {
         try {
+            // Join the selected channel and fetch messages
             await chatStore.joinChannel(channelId);
             await chatStore.fetchMessages(channelId);
+
+            // Scroll to the bottom after joining the channel
             if (chatStore.currentChannel) {
                 chatStore.scrollToBottom();
             }
@@ -80,10 +92,24 @@ const initializeStores = () => {
         }
     };
 
+    const leaveChannel = async () => {
+        if (chatStore.currentChannel) {
+            try {
+                await chatStore.leaveChannel(chatStore.currentChannel._id);
+            } catch (error) {
+                console.error("Error leaving channel:", error);
+                alert("Failed to leave channel.");
+            }
+        }
+    };
+
     const sendMessage = () => {
         if (newMessage.value.trim()) {
+            // Send the message
             chatStore.sendMessage(newMessage.value);
             newMessage.value = "";
+
+            // Scroll to the bottom after sending the message
             if (chatStore.currentChannel) {
                 chatStore.scrollToBottom();
             }
@@ -91,20 +117,26 @@ const initializeStores = () => {
     };
 
     const handleInput = () => {
+        // Send typing notification if not already sent
         if (!typingTimeout.value) {
             chatStore.sendTypingNotification();
         }
+
+        // Clear the previous timeout (if any)
         if (typingTimeout.value) {
             clearTimeout(typingTimeout.value);
         }
+
+        // Set a new timeout to stop the typing notification
+        // after 1.5 seconds of inactivity
         typingTimeout.value = setTimeout(() => {
             chatStore.stopTypingNotification();
             typingTimeout.value = null;
-        }, 2000);
+        }, 1500);
     };
 
     const formatTypingNotification = (typingUsers) => {
-        const usernames = typingUsers
+        const usernames = typingUsers // Extract usernames from the typingUsers array
             .filter((user) => user.channelId === chatStore.currentChannel._id)
             .map((user) => user.username);
 
@@ -120,8 +152,9 @@ const initializeStores = () => {
         return "";
     };
 
+    // Helper to check if a date separator should be shown
     const shouldShowDateSeparator = (index) => {
-        if (index === 0) return true;
+        if (index === 0) return true; // Always show for the first message
         const currentDate = new Date(
             chatStore.messages[index].timestamp
         ).toDateString();
@@ -131,6 +164,7 @@ const initializeStores = () => {
         return currentDate !== previousDate;
     };
 
+    // Helper to format the date separator
     const formatDateSeparator = (timestamp) => {
         const messageDate = new Date(timestamp);
         const today = new Date();
@@ -150,11 +184,18 @@ const initializeStores = () => {
         }
     };
 
+    // Delete Channel Function
     const deleteChannel = async () => {
         if (confirmDelete.value && chatStore.currentChannel) {
             try {
                 await chatStore.removeChannel(chatStore.currentChannel._id);
-                confirmDelete.value = false;
+                confirmDelete.value = false; // Reset checkbox
+
+                // Navigate to the lobby or default state
+                navigateTo("/chat"); // Back to the base root
+
+                // Refresh the channels list
+                await chatStore.fetchChannels();
             } catch (error) {
                 console.error("Error deleting channel:", error);
                 alert("Failed to delete channel.");
@@ -162,11 +203,13 @@ const initializeStores = () => {
         }
     };
 
+    // Check if a user is online
     const isUserOnline = (userId) => {
         if (!chatStore.onlineUsers) return false; // Handle undefined case
         return chatStore.onlineUsers.includes(userId);
     };
 
+    // Helper to generate a color from a string (for member initials)
     const stringToColor = (str) => {
         let hash = 0;
         for (let i = 0; i < str.length; i++) {
@@ -182,6 +225,7 @@ const initializeStores = () => {
 
     return {
         newChannelName,
+        newChannelDescription,
         newMessage,
         typingTimeout,
         messagesContainer,
@@ -194,6 +238,7 @@ const initializeStores = () => {
         authStore,
         createNewChannel,
         selectChannel,
+        leaveChannel,
         sendMessage,
         handleInput,
         formatTypingNotification,

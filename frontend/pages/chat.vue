@@ -5,23 +5,30 @@
             class="flex flex-col min-w-[300px] max-w-[400px] w-1/4 bg-gray-100 p-4"
         >
             <!-- Channels Row -->
-            <div class="mb-4 flex flex-col h-full">
-                <ChannelTitles>Channels</ChannelTitles>
-                <div>
+            <div class="flex flex-col h-full">
+                <ChannelTitles icon="chat">Channels</ChannelTitles>
+                <div class="mb-4">
                     <input
                         v-model="newChannelName"
-                        placeholder="New channel name"
-                        class="w-full p-2 border rounded mb-2"
+                        placeholder="Channel name"
+                        class="w-full p-2 border rounded mb-0.5"
                     />
+                    <textarea
+                        v-model="newChannelDescription"
+                        placeholder="Channel description (optional)"
+                        class="w-full p-2 border rounded resize-none"
+                        rows="3"
+                        maxlength="300"
+                    ></textarea>
                     <button
                         @click="createNewChannel"
                         :disabled="!newChannelName.trim()"
-                        class="btn bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
+                        class="w-full btn bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
                     >
                         Create Channel
                     </button>
                 </div>
-                <p class="mt-2 text-sm text-gray-600">
+                <p class="mt-2 text-xs text-gray-400 text-center">
                     Click on the channel below to join or enter
                 </p>
                 <!-- Scrollable Channels List -->
@@ -120,7 +127,7 @@
             <template v-else>
                 <div class="flex-1 flex items-center justify-center">
                     <p class="text-gray-500 text-center">
-                        Please select a channel or chat to start a conversation.
+                        Please select a channel to start a conversation.
                     </p>
                 </div>
             </template>
@@ -146,6 +153,7 @@ import initializeStores from "~/composables/chat-logic.js";
 // Scripts
 const {
     newChannelName,
+    newChannelDescription,
     newMessage,
     typingTimeout,
     messagesContainer,

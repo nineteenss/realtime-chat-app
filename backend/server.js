@@ -165,11 +165,16 @@ class ChatServer {
 
         this.app.post("/api/channels", authenticate, async (req, res) => {
             try {
-                const { name } = req.body;
+                const { name, description } = req.body;
                 const creatorId = req.user._id; // From authenticate middleware
+
+                // console.log("Channel creator ID:", creatorId); // Debugging
+                // console.log("Channel name:", name); // Debugging
+                // console.log("Channel description:", description); // Debugging
 
                 const channel = new Channel({
                     name,
+                    description,
                     creator: creatorId,
                     members: [creatorId],
                     color: getRandomColor(), // Add random color
@@ -195,9 +200,13 @@ class ChatServer {
             "/api/channels/:channelId",
             authenticate,
             async (req, res) => {
+                // console.log("DELETE /api/channels/:channelId route hit"); // Debugging
                 try {
                     const { channelId } = req.params;
                     const userId = req.user._id; // From authenticate middleware
+
+                    // console.log("User ID from request:", userId); // Debugging
+                    // console.log("Channel ID from request:", channelId); // Debugging
 
                     // Find the channel
                     const channel = await Channel.findById(channelId)
@@ -206,13 +215,20 @@ class ChatServer {
                         .populate("messages.sender", "username"); // Populate message senders
 
                     if (!channel) {
+                        console.error("Channel not found:", channelId); // Debugging
                         return res
                             .status(404)
                             .json({ error: "Channel not found" });
                     }
 
+                    // console.log("Channel creator:", channel.creator); // Debugging
+                    // console.log("Channel creator ID:", channel.creator._id); // Debugging
+                    // console.log("User ID from token:", userId); // Debugging
+
                     // Check if the user is the channel creator
-                    if (channel.creator.toString() !== userId.toString()) {
+                    // Fixed: was unable to delete channel from the frontend due to id check
+                    if (channel.creator._id.toString() !== userId.toString()) {
+                        // Fixed: added "._id"
                         return res.status(403).json({
                             error: "Only the creator can delete the channel",
                         });
@@ -226,6 +242,9 @@ class ChatServer {
                         { channels: channelId },
                         { $pull: { channels: channelId } }
                     );
+
+                    // Broadcast the channel deletion to all clients
+                    this.io.emit("channel-deleted", channelId);
 
                     res.json({ message: "Channel deleted successfully" });
                 } catch (error) {
