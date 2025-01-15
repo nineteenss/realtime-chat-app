@@ -160,6 +160,38 @@ const initializeStores = () => {
         }
     };
 
+    const kickMember = async (memberId) => {
+        if (!chatStore.currentChannel || !authStore.user) return;
+
+        try {
+            const backendUrl = chatStore.getBackendUrl();
+            const response = await fetch(
+                `${backendUrl}/api/channels/${chatStore.currentChannel._id}/kick`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${authStore.token}`,
+                    },
+                    body: JSON.stringify({
+                        userId: memberId,
+                        kickerId: authStore.user.id,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error("Failed to kick member");
+            }
+
+            // Refresh the channel members list
+            await chatStore.fetchChannelDetails(chatStore.currentChannel._id);
+        } catch (error) {
+            console.error("Error kicking member:", error);
+            throw error;
+        }
+    };
+
     const handleInput = () => {
         // Send typing notification if not already sent
         if (!typingTimeout.value) {
@@ -179,19 +211,19 @@ const initializeStores = () => {
         }, 1500);
     };
 
-    const formatTypingNotification = (typingUsers) => {
-        const usernames = typingUsers // Extract usernames from the typingUsers array
-            .filter((user) => user.channelId === chatStore.currentChannel._id)
+    const formatTypingNotification = (typingUsers, channelId) => {
+        const users = typingUsers
+            .filter((user) => user.channelId === channelId)
             .map((user) => user.username);
 
-        if (usernames.length === 1) {
-            return `${usernames[0]} is typing...`;
-        } else if (usernames.length === 2) {
-            return `${usernames[0]} and ${usernames[1]} are typing...`;
-        } else if (usernames.length > 2) {
-            return `${usernames[0]}, ${usernames[1]} and ${
-                usernames.length - 2
-            } more are typing...`;
+        if (users.length === 1) {
+            return `${users[0]} is typing`;
+        } else if (users.length === 2) {
+            return `${users[0]} and ${users[1]} are typing`;
+        } else if (users.length > 2) {
+            return `${users[0]}, ${users[1]} and ${
+                users.length - 2
+            } more are typing`;
         }
         return "";
     };
@@ -286,6 +318,7 @@ const initializeStores = () => {
         joinChannel,
         leaveChannel,
         sendMessage,
+        kickMember,
         handleInput,
         formatTypingNotification,
         shouldShowDateSeparator,

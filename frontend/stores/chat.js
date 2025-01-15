@@ -184,10 +184,8 @@ export const useChatStore = defineStore("chat", {
 
             // Listen for incoming messages and add them to messages array
             this.socket.on("receive-message", async (message) => {
-                console.log("Received message:", message); // Debugging
                 // Add the new message to the messages array
                 this.messages.push(message);
-                console.log("Updated messages array:", this.messages); // Debugging
 
                 // Wait for the DOM to update before scrolling
                 await nextTick();
@@ -330,7 +328,7 @@ export const useChatStore = defineStore("chat", {
                 // Join the channel after creation
                 await this.joinChannel(channel._id);
 
-                console.log("Created channel:", channel); // Debugging
+                // console.log("Created channel:", channel); // Debugging
 
                 return channel;
             } catch (error) {
@@ -528,6 +526,46 @@ export const useChatStore = defineStore("chat", {
                 await this.fetchChannels();
             } catch (error) {
                 console.error("Error leaving channel", error);
+                throw error;
+            }
+        },
+
+        // Kick existing member
+        async kickMember(memberId) {
+            const authStore = useAuthStore();
+
+            if (!this.currentChannel || !authStore.user) {
+                throw new Error("No channel selected or user not logged in.");
+            }
+
+            try {
+                const backendUrl = this.getBackendUrl();
+                const response = await fetch(
+                    `${backendUrl}/api/channels/${this.currentChannel._id}/kick`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${authStore.token}`,
+                        },
+                        body: JSON.stringify({
+                            userId: memberId,
+                            kickerId: authStore.user.id,
+                        }),
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error("Failed to kick member");
+                }
+
+                // Refresh the channel members list
+                await this.fetchChannelDetails(this.currentChannel._id);
+
+                // Emit an event to update the channel in real-time
+                this.socket.emit("channel-updated", this.currentChannel._id);
+            } catch (error) {
+                console.error("Error kicking member:", error);
                 throw error;
             }
         },

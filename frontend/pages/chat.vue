@@ -4,8 +4,41 @@
         <div
             class="flex flex-col min-w-[300px] max-w-[400px] w-1/4 bg-gray-100 p-4"
         >
+            <div class="mb-4 pb-4 border-b border-gray-200">
+                <div class="flex flex-row items-center gap-2">
+                    <div
+                        class="flex flex-row items-center w-full justify-between"
+                    >
+                        <!-- Username -->
+                        <div class="flex flex-row gap-2 items-center">
+                            <div
+                                class="bg-green-500 w-2.5 h-2.5 rounded-full"
+                            ></div>
+                            <p class="text-lg font-semibold">
+                                {{ authStore.user.username || "Unknown User" }}
+                            </p>
+                        </div>
+
+                        <div class="flex flex-row gap-2">
+                            <!-- Logout Button -->
+                            <Icon
+                                @click="logout"
+                                name="proicons:door-open"
+                                class="bg-red-500 hover:bg-red-600 cursor-pointer w-6 h-6"
+                            />
+
+                            <!-- Lobby Button -->
+                            <Icon
+                                @click="goToLobby"
+                                name="proicons:arrow-import"
+                                class="bg-blue-500 hover:bg-blue-600 cursor-pointer w-6 h-6"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
             <!-- Channels Row -->
-            <div class="flex flex-col h-full">
+            <div class="flex flex-col h-full overflow-hidden">
                 <ChannelTitles icon="chat">Channels</ChannelTitles>
                 <div class="mb-4">
                     <input
@@ -81,16 +114,23 @@
                         </h2>
                         <div class="text-sm text-gray-600 flex flex-row">
                             {{ onlineMembersCount }} members online.&nbsp;
-                            <p
+                            <div
                                 v-if="chatStore.typingUsers.length > 0"
-                                class="text-sm text-blue-500"
+                                class="text-sm text-blue-500 relative"
                             >
-                                {{
-                                    formatTypingNotification(
-                                        chatStore.typingUsers
-                                    )
-                                }}
-                            </p>
+                                <Icon
+                                    name="svg-spinners:3-dots-bounce"
+                                    class="bg-blue-500 absolute top-1"
+                                />
+                                <p class="ml-5">
+                                    {{
+                                        formatTypingNotification(
+                                            chatStore.typingUsers,
+                                            chatStore.currentChannel._id
+                                        )
+                                    }}
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -99,7 +139,7 @@
                 <div
                     v-if="isChannelMember"
                     ref="messagesContainer"
-                    class="flex-1 overflow-y-auto mb-4 px-1 space-y-0.5"
+                    class="flex-1 overflow-y-auto mb-4 px-1 space-y-0.5 rounded-2xl"
                 >
                     <div
                         v-for="(message, index) in chatStore.messages"
@@ -205,6 +245,31 @@ const {
     stringToColor,
 } = initializeStores();
 
+// Logout function
+const logout = () => {
+    authStore.logout();
+    navigateTo("/login");
+};
+
+// Go to Lobby function
+const goToLobby = () => {
+    // Clear the current channel from localStorage
+    localStorage.removeItem("currentChannelId");
+
+    // Navigate to /chat
+    navigateTo("/chat");
+
+    // Refresh the page to reset the state
+    window.location.reload();
+};
+
+// Handle "Esc" key press
+const handleKeydown = (event) => {
+    if (event.key === "Escape") {
+        goToLobby();
+    }
+};
+
 // Page meta
 definePageMeta({
     requiresAuth: true,
@@ -219,6 +284,8 @@ useHead({
 onMounted(async () => {
     // Wait for the DOM to be fully rendered
     await nextTick();
+
+    window.addEventListener("keydown", handleKeydown);
 
     // Bind the messagesContainer ref to the store
     chatStore.messagesContainer = messagesContainer.value;
@@ -272,29 +339,12 @@ onMounted(async () => {
         chatStore.scrollToBottom();
     }
 
-    // if (chatStore.currentChannel) {
-    //     try {
-    //         await chatStore.joinChannel(chatStore.currentChannel._id);
-    //         await chatStore.fetchMessages(chatStore.currentChannel._id);
-    //         chatStore.scrollToBottom();
-    //     } catch (error) {
-    //         console.error("Error re-joining channel:", error);
-    //         chatStore.currentChannel = null; // Reset currentChannel if re-joining fails
-    //     }
-    // } else {
-    //     // If no channel is selected, fetch the first channel (optional)
-    //     if (chatStore.channels.length > 0) {
-    //         await chatStore.joinChannel(chatStore.channels[0]._id);
-    //         await chatStore.fetchMessages(chatStore.channels[0]._id);
-    //         chatStore.scrollToBottom();
-    //     }
-    // }
-
     // console.log("Current Channel (onMounted):", chatStore.currentChannel); // Debugging
     // console.log("Members (onMounted):", chatStore.currentChannel?.members); // Debugging
 });
 
 onUnmounted(() => {
+    window.removeEventListener("keydown", handleKeydown);
     // Clean up
     if (typingTimeout.value) {
         clearTimeout(typingTimeout.value);

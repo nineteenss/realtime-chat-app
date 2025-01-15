@@ -1,5 +1,5 @@
 <template>
-    <div>
+    <div class="grid grid-rows-[auto_1fr] h-full rounded-lg overflow-hidden">
         <!-- Members List with Search -->
         <div class="mb-4">
             <ChannelTitles icon="emoji">
@@ -12,13 +12,19 @@
             />
         </div>
         <!-- Scrollable Members List -->
-        <div class="space-y-0.5 h-full overflow-y-auto">
+        <div class="space-y-0.5 overflow-y-auto">
             <div
                 v-for="member in filteredMembers"
                 :key="member._id"
-                class="p-2 bg-white hover:bg-gray-50 transition-colors duration-200 rounded-md flex items-center gap-3 relative"
+                class="p-2 bg-white hover:bg-gray-50 transition-colors duration-200 rounded-lg flex items-center gap-3 relative"
             >
-                <ChannelKickButton />
+                <!-- Kick Button -->
+                <ChannelKickButton
+                    :member="member"
+                    :is-channel-creator="isChannelCreator"
+                    :is-user-self="isUserSelf(member._id)"
+                    @kick="handleKick"
+                />
 
                 <!-- Circle with Initial -->
                 <div
@@ -42,7 +48,7 @@
                             ></div>
                         </div>
                         <p
-                            v-if="isChannelCreator(member._id)"
+                            v-if="channelCreator(member._id)"
                             class="uppercase text-[10px]/[23px] text-orange-500 font-bold absolute right-0 mr-1"
                         >
                             Owner
@@ -86,10 +92,11 @@ const {
     filteredMembers,
     stringToColor,
     isChannelMember,
+    isChannelCreator,
 } = initializeStores();
 
 // Check if the sender is the channel creator
-const isChannelCreator = (senderId) => {
+const channelCreator = (senderId) => {
     const creatorId =
         props.chatStore.currentChannel?.creator?._id ||
         props.chatStore.currentChannel?.creator;
@@ -100,5 +107,14 @@ const isChannelCreator = (senderId) => {
 const isUserSelf = (senderId) => {
     const authStore = useAuthStore();
     return senderId === authStore.user.id;
+};
+
+// Handle kick event
+const handleKick = async (memberId) => {
+    try {
+        await props.chatStore.kickMember(memberId);
+    } catch (error) {
+        console.error("Error kicking member:", error);
+    }
 };
 </script>

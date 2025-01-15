@@ -257,6 +257,53 @@ class ChatServer {
             }
         );
 
+        // Kick member from channel
+        this.app.post(
+            "/api/channels/:channelId/kick",
+            authenticate,
+            async (req, res) => {
+                try {
+                    const { channelId } = req.params;
+                    const { userId, kickerId } = req.body;
+
+                    // Find the channel
+                    const channel = await Channel.findById(channelId)
+                        .populate("creator", "username")
+                        .populate("members", "username");
+
+                    if (!channel) {
+                        return res
+                            .status(404)
+                            .json({ error: "Channel not found" });
+                    }
+
+                    // Check if the kicker is the channel creator
+                    if (
+                        channel.creator._id.toString() !== kickerId.toString()
+                    ) {
+                        return res.status(403).json({
+                            error: "Only the channel creator can kick members",
+                        });
+                    }
+
+                    // Remove the user from the channel members list
+                    channel.members = channel.members.filter(
+                        (member) => member._id.toString() !== userId.toString()
+                    );
+
+                    await channel.save();
+
+                    // Broadcast the updated channel to all clients
+                    this.io.emit("channel-updated", channel);
+
+                    res.json({ message: "Member kicked successfully" });
+                } catch (error) {
+                    console.error("Error kicking member:", error);
+                    res.status(400).json({ error: error.message });
+                }
+            }
+        );
+
         // Get channels
         this.app.get("/api/channels", authenticate, async (req, res) => {
             try {
@@ -432,7 +479,7 @@ class ChatServer {
 
             // Handle channel join requests
             socket.on("join-channel", async (channelId) => {
-                console.log(`User ${socket.id} joining channel ${channelId}`); // Debugging
+                // console.log(`User ${socket.id} joining channel ${channelId}`); // Debugging
                 socket.join(channelId);
                 console.log(`User ${socket.id} joined channel ${channelId}`);
 
@@ -443,20 +490,11 @@ class ChatServer {
                 if (channel) {
                     this.io.to(channelId).emit("channel-updated", channel);
                 }
-
-                // Broadcast the updated channel to all clients
-                // Channel.findById(channelId)
-                //     .populate("members", "username")
-                //     .then((channel) => {
-                //         if (channel) {
-                //             this.io.emit("channel-updated", channel);
-                //         }
-                //     });
             });
 
             // Handle channel leave requests
             socket.on("leave-channel", (channelId) => {
-                console.log(`User ${socket.id} leaving channel ${channelId}`); // Debugging
+                // console.log(`User ${socket.id} leaving channel ${channelId}`); // Debugging
                 socket.leave(channelId);
                 console.log(`User ${socket.id} left channel ${channelId}`); // Debugging
 

@@ -36,7 +36,7 @@
                 {{ channel.name }}
             </div>
             <div
-                class="text-sm text-gray-600 truncate flex flex-row items-end gap-1 relative overflow-hidden"
+                class="text-sm text-gray-600 flex flex-row items-end gap-1 relative"
             >
                 <!-- Show typing notification if someone is typing in this channel -->
                 <template v-if="isTypingInThisChannel">
@@ -48,7 +48,7 @@
                 </template>
                 <!-- Otherwise, show the last message -->
                 <template v-else>
-                    {{ lastMessageText }}
+                    <p class="truncate">{{ lastMessageText }}</p>
                 </template>
             </div>
         </div>
@@ -58,6 +58,9 @@
 <script setup>
 // Imports
 import { computed } from "vue";
+import initializeStores from "~/composables/chat-logic.js";
+
+const { formatTypingNotification } = initializeStores();
 
 // Component props
 const props = defineProps({
@@ -95,20 +98,10 @@ const isTypingInThisChannel = computed(() => {
 
 // Format the typing text
 const typingText = computed(() => {
-    const users = props.typingUsers
-        .filter((user) => user.channelId === props.channel._id)
-        .map((user) => user.username);
-
-    if (users.length === 1) {
-        return `${users[0]} is typing`;
-    } else if (users.length === 2) {
-        return `${users[0]} and ${users[1]} are typing`;
-    } else if (users.length > 2) {
-        return `${users[0]}, ${users[1]} and ${
-            users.length - 2
-        } more are typing`;
-    }
-    return "";
+    const users = props.typingUsers.filter(
+        (user) => user.channelId === props.channel._id
+    );
+    return formatTypingNotification(users, props.channel._id);
 });
 
 // Get the last message text
