@@ -9,7 +9,7 @@ import { defineNuxtPlugin } from "#app";
 import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
 
 export default defineNuxtPlugin((nuxtApp) => {
-    console.log("Initializing pinia-plugin-persistedstate"); // Debugging
+    // console.log("Initializing pinia-plugin-persistedstate"); // Debugging
     // Access the Pinia instance created by @pinia/nuxt
     const pinia = usePinia();
 

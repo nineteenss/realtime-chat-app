@@ -20,6 +20,8 @@ export const useChatStore = defineStore("chat", {
         channels: [], // Array to store available channels
         typingUsers: [], // Array to store users typing in the channel
         messagesContainer: ref(null), // Add a ref for the messages container
+        allMembers: [], // Array to store all registered members
+        onlineUsers: [], // Initialize onlineUsers
     }),
 
     actions: {
@@ -81,6 +83,9 @@ export const useChatStore = defineStore("chat", {
                     token: authStore.token, // Authenticate socket connection
                 },
             });
+
+            // Initialize onlineUsers as an empty array
+            this.onlineUsers = [];
 
             // Notify the server that the user is online
             this.socket.emit("user-online", authStore.user.id);
@@ -147,7 +152,7 @@ export const useChatStore = defineStore("chat", {
                     this.currentChannel = updatedChannel;
                 }
 
-                console.log("Channel updated:", updatedChannel); // Debugging
+                // console.log("Channel updated:", updatedChannel); // Debugging
             });
 
             // Listen for incoming messages and add them to messages array
@@ -165,6 +170,44 @@ export const useChatStore = defineStore("chat", {
             });
 
             await this.fetchChannels();
+        },
+
+        /*
+            Global-related actions
+        */
+
+        // Fetch all registered members
+        async fetchAllMembers() {
+            const authStore = useAuthStore();
+
+            if (!authStore.token) {
+                throw new Error("No token found. Please log in.");
+            }
+
+            try {
+                const backendUrl = this.getBackendUrl();
+                const response = await fetch(`${backendUrl}/api/users`, {
+                    headers: {
+                        Authorization: `Bearer ${authStore.token}`,
+                    },
+                });
+
+                if (response.status === 401) {
+                    authStore.logout();
+                    navigateTo("/login");
+                    throw new Error("Session expired. Please log in again.");
+                }
+
+                if (!response.ok) {
+                    throw new Error("Failed to fetch all members");
+                }
+
+                const data = await response.json();
+                this.allMembers = data; // Store all registered users
+            } catch (error) {
+                console.error("Error fetching all members:", error);
+                throw error;
+            }
         },
 
         /*
@@ -361,8 +404,8 @@ export const useChatStore = defineStore("chat", {
 
                 // Fetch messages for selected channel
                 await this.fetchMessages(channelId);
-                console.log("Joined channel:", channel); // Debugging
-                console.log("Channel members:", channel.members); // Debugging
+                // console.log("Joined channel:", channel); // Debugging
+                // console.log("Channel members:", channel.members); // Debugging
             } catch (error) {
                 console.error("Error joining channel", error);
                 throw error;

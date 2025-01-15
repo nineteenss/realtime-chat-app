@@ -109,7 +109,7 @@ class ChatServer {
                     user: { id: user._id, username },
                 });
             } catch (error) {
-                console.errir("Registration error:", error);
+                console.error("Registration error:", error); // Fixed typo "errir" to "error"
                 res.status(400).json({ error: error.message });
             }
         });
@@ -296,7 +296,7 @@ class ChatServer {
                     const { channelId } = req.params;
 
                     if (!channelId) {
-                        return req
+                        return res // Fixed "req" to "res" typo
                             .status(400)
                             .json({ error: "Channel ID is required" });
                     }
@@ -351,6 +351,18 @@ class ChatServer {
                 }
             }
         );
+
+        // Fetch existing users
+        this.app.get("/api/users", authenticate, async (req, res) => {
+            try {
+                const users = await User.find({}, "username");
+
+                res.json(users);
+            } catch (error) {
+                console.error("Failed to fetch users:", error);
+                res.status(400).json({ error: error.message });
+            }
+        });
     }
 
     setupSocketEvents() {
@@ -452,6 +464,7 @@ class ChatServer {
                     this.io.emit("update-channels", updatedChannel);
                 } catch (error) {
                     console.error("Error sending message:", error);
+                    socket.emit("error", { message: "Failed to send message" });
                 }
             });
 

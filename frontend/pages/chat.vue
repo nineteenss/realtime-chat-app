@@ -190,6 +190,9 @@ onMounted(async () => {
     chatStore.initSocket();
     chatStore.listenForTypingNotifications();
 
+    // Fetch all registered users
+    chatStore.fetchAllMembers();
+
     // Scroll to the bottom when the component is mounted
     // Automatically re-join the current channel if it exists
     if (chatStore.currentChannel) {
@@ -210,8 +213,8 @@ onMounted(async () => {
         }
     }
 
-    console.log("Current Channel (onMounted):", chatStore.currentChannel); // Debugging
-    console.log("Members (onMounted):", chatStore.currentChannel?.members); // Debugging
+    // console.log("Current Channel (onMounted):", chatStore.currentChannel); // Debugging
+    // console.log("Members (onMounted):", chatStore.currentChannel?.members); // Debugging
 });
 
 onUnmounted(() => {

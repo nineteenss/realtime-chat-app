@@ -1,3 +1,10 @@
+//
+//    chat-logic.js
+//    realtime-chat-app
+//
+//    Created by Sergey Smetannikov on 15.01.2025
+//
+
 import { ref, computed } from "vue";
 import { useChatStore } from "~/stores/chat";
 import { useAuthStore } from "~/stores/auth";
@@ -26,8 +33,12 @@ const initializeStores = () => {
     });
 
     const filteredMembers = computed(() => {
-        if (!chatStore.currentChannel?.members) return [];
-        return chatStore.currentChannel.members
+        const members = chatStore.currentChannel
+            ? chatStore.currentChannel.members
+            : chatStore.allMembers;
+
+        if (!members) return [];
+        return members
             .filter((member) => member?.username)
             .filter((member) =>
                 member.username
@@ -152,6 +163,7 @@ const initializeStores = () => {
     };
 
     const isUserOnline = (userId) => {
+        if (!chatStore.onlineUsers) return false; // Handle undefined case
         return chatStore.onlineUsers.includes(userId);
     };
 
