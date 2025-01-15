@@ -130,103 +130,7 @@
         <div
             class="flex flex-col min-w-[300px] max-w-[400px] w-1/4 bg-gray-100 p-4 overflow-hidden"
         >
-            <div class="mb-4 flex flex-col h-full">
-                <!-- Channel Description -->
-                <div class="mb-4">
-                    <ChannelTitles>Channel info</ChannelTitles>
-                    <div v-if="chatStore.currentChannel">
-                        <p class="text-sm text-gray-600">
-                            {{
-                                chatStore.currentChannel.description ||
-                                "No description available."
-                            }}
-                        </p>
-                    </div>
-                    <div v-else>
-                        <p class="text-sm text-gray-600">
-                            No channel selected.
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Delete Channel Button (Creator Only) -->
-                <div v-if="isChannelCreator" class="mb-4">
-                    <label class="flex items-center gap-2 mb-2">
-                        <input
-                            v-model="confirmDelete"
-                            type="checkbox"
-                            class="form-checkbox"
-                        />
-                        <span class="text-xs text-gray-700">
-                            I understand what I am doing by deleting this
-                            channel.
-                        </span>
-                    </label>
-                    <button
-                        @click="deleteChannel"
-                        :disabled="!confirmDelete"
-                        class="w-full btn bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                    >
-                        Delete Channel
-                    </button>
-                </div>
-
-                <!-- Members List with Search -->
-                <!-- Search Field -->
-                <div class="mb-4">
-                    <ChannelTitles>
-                        {{ filteredMembers.length }} Members
-                    </ChannelTitles>
-                    <input
-                        v-model="searchQuery"
-                        placeholder="Search members..."
-                        class="w-full p-2 border rounded"
-                    />
-                </div>
-
-                <!-- Scrollable Members List -->
-                <div class="space-y-0.5 h-full overflow-y-auto">
-                    <div
-                        v-for="member in filteredMembers"
-                        :key="member._id"
-                        class="p-2 bg-white hover:bg-gray-50 transition-colors duration-200 rounded-md shadow-sm flex items-center gap-3"
-                    >
-                        <!-- Circle with Initial -->
-                        <div
-                            class="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold"
-                            :style="{
-                                backgroundColor: stringToColor(
-                                    member.username || ''
-                                ),
-                            }"
-                        >
-                            {{
-                                member.username?.charAt(0).toUpperCase() || "?"
-                            }}
-                        </div>
-                        <!-- Username and Online Status -->
-                        <div class="flex-1 min-w-0">
-                            <p class="font-semibold truncate">
-                                {{ member.username || "Unknown User" }}
-                            </p>
-                            <p
-                                :class="[
-                                    'text-sm font-normal',
-                                    isUserOnline(member._id)
-                                        ? 'text-green-600'
-                                        : 'text-gray-500',
-                                ]"
-                            >
-                                {{
-                                    isUserOnline(member._id)
-                                        ? "online"
-                                        : "last seen recently"
-                                }}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <ChannelInnerSidebar />
         </div>
     </div>
 </template>
@@ -236,11 +140,33 @@
 import ChannelItem from "~/components/ChannelItem.vue";
 import ChannelChatBubble from "~/components/ChannelChatBubble.vue";
 import ChannelTitles from "~/components/ChannelTitles.vue";
+import ChannelInnerSidebar from "~/components/ChannelInnerSidebar.vue";
+import initializeStores from "~/composables/chat-logic.js";
 
-// Imports
-import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
-import { useChatStore } from "../stores/chat";
-import { useAuthStore } from "../stores/auth";
+// Scripts
+const {
+    newChannelName,
+    newMessage,
+    typingTimeout,
+    messagesContainer,
+    confirmDelete,
+    searchQuery,
+    onlineMembersCount,
+    filteredMembers,
+    isChannelCreator,
+    chatStore,
+    authStore,
+    createNewChannel,
+    selectChannel,
+    sendMessage,
+    handleInput,
+    formatTypingNotification,
+    shouldShowDateSeparator,
+    formatDateSeparator,
+    deleteChannel,
+    isUserOnline,
+    stringToColor,
+} = initializeStores();
 
 // Page meta
 definePageMeta({
@@ -250,26 +176,6 @@ definePageMeta({
 // Head meta
 useHead({
     title: "Chat",
-});
-
-// Variables
-const chatStore = useChatStore();
-const authStore = useAuthStore();
-const newMessage = ref("");
-const newChannelName = ref("");
-const typingTimeout = ref(null);
-const messagesContainer = ref(null); // Ref for the messages container
-const confirmDelete = ref(false); // Ref for channel deleting confirmation
-const searchQuery = ref(""); // For member search
-const onlineMembersCount = computed(() => {
-    if (!chatStore.currentChannel) return 0;
-
-    // Filter online users who are members of the current channel
-    return chatStore.onlineUsers.filter((userId) =>
-        chatStore.currentChannel.members.some(
-            (member) => member._id === userId || member === userId
-        )
-    ).length;
 });
 
 // Lifecycle hooks
@@ -314,190 +220,6 @@ onUnmounted(() => {
         clearTimeout(typingTimeout.value);
     }
 });
-
-// Functions
-async function createNewChannel() {
-    if (newChannelName.value.trim()) {
-        try {
-            // Create a new channel
-            await chatStore.createChannel(newChannelName.value);
-            newChannelName.value = "";
-        } catch (error) {
-            console.error("Error creating channel:", error);
-            alert("Error creating channel");
-        }
-    }
-}
-
-// async function removeChannel(channelId) {
-//     try {
-//         // Remove the channel
-//         await chatStore.removeChannel(channelId);
-//     } catch (error) {
-//         console.error("Error deleting channel:", error);
-//         alert("Error deleting channel");
-//     }
-// }
-
-async function selectChannel(channelId) {
-    try {
-        // Join the selected channel and fetch messages
-        await chatStore.joinChannel(channelId);
-        await chatStore.fetchMessages(channelId);
-
-        // Scroll to the bottom after joining the channel
-        if (chatStore.currentChannel) {
-            chatStore.scrollToBottom();
-        }
-    } catch (error) {
-        console.error("Error joining channel:", error);
-        alert("Error joining channel");
-    }
-}
-
-async function leaveChannel(channelId) {
-    try {
-        // Leave the selected channel
-        await chatStore.leaveChannel(channelId);
-    } catch (error) {
-        console.error("Error leaving channel:", error);
-        alert("Error leaving channel");
-    }
-}
-
-function sendMessage() {
-    if (newMessage.value.trim()) {
-        // Send the message
-        chatStore.sendMessage(newMessage.value);
-        newMessage.value = ""; // Clear the input field
-
-        // Scroll to the bottom after sending the message
-        if (chatStore.currentChannel) {
-            chatStore.scrollToBottom();
-        }
-    }
-}
-
-function handleInput() {
-    // Send typing notification if not already sent
-    if (!typingTimeout.value) {
-        chatStore.sendTypingNotification();
-    }
-
-    // Clear the previous timeout (if any)
-    if (typingTimeout.value) {
-        clearTimeout(typingTimeout.value);
-    }
-
-    // Set a new timeout to stop the typing notification
-    // after 2 seconds of inactivity
-    typingTimeout.value = setTimeout(() => {
-        chatStore.stopTypingNotification();
-        typingTimeout.value = null;
-    }, 2000);
-}
-
-function formatTypingNotification(typingUsers) {
-    // Extract usernames from the typingUsers array
-    const usernames = typingUsers
-        .filter((user) => user.channelId === chatStore.currentChannel._id)
-        .map((user) => user.username);
-
-    if (usernames.length === 1) {
-        return `${usernames[0]} is typing...`;
-    } else if (usernames.length === 2) {
-        return `${usernames[0]} and ${usernames[1]} are typing...`;
-    } else if (usernames.length > 2) {
-        return `${usernames[0]}, ${usernames[1]} and ${
-            usernames.length - 2
-        } more are typing...`;
-    }
-    return "";
-}
-
-// Check if the current user is the channel creator
-const isChannelCreator = computed(() => {
-    return (
-        chatStore.currentChannel?.creator?._id === authStore.user?.id ||
-        chatStore.currentChannel?.creator === authStore.user?.id
-    );
-});
-
-// Filter members based on search query
-const filteredMembers = computed(() => {
-    if (!chatStore.currentChannel?.members) return [];
-    return chatStore.currentChannel.members
-        .filter((member) => member?.username) // Filter out undefined/null members
-        .filter((member) =>
-            member.username
-                .toLowerCase()
-                .includes(searchQuery.value.toLowerCase())
-        );
-});
-
-// Helper function to generate a color from a string (for member initials)
-const stringToColor = (str) => {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    let color = "#";
-    for (let i = 0; i < 3; i++) {
-        const value = (hash >> (i * 8)) & 0xff;
-        color += ("00" + value.toString(16)).substr(-2);
-    }
-    return color;
-};
-
-// Check if a user is online
-const isUserOnline = (userId) => {
-    return chatStore.onlineUsers.includes(userId);
-};
-
-// Delete Channel Function
-const deleteChannel = async () => {
-    if (confirmDelete.value && chatStore.currentChannel) {
-        try {
-            await chatStore.removeChannel(chatStore.currentChannel._id);
-            confirmDelete.value = false; // Reset checkbox
-        } catch (error) {
-            console.error("Error deleting channel:", error);
-            alert("Failed to delete channel.");
-        }
-    }
-};
-
-// Helper function to check if a date separator should be shown
-function shouldShowDateSeparator(index) {
-    if (index === 0) return true; // Always show for the first message
-    const currentDate = new Date(
-        chatStore.messages[index].timestamp
-    ).toDateString();
-    const previousDate = new Date(
-        chatStore.messages[index - 1].timestamp
-    ).toDateString();
-    return currentDate !== previousDate;
-}
-
-// Helper function to format the date separator
-function formatDateSeparator(timestamp) {
-    const messageDate = new Date(timestamp);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    if (messageDate.toDateString() === today.toDateString()) {
-        return "Today";
-    } else if (messageDate.toDateString() === yesterday.toDateString()) {
-        return "Yesterday";
-    } else {
-        return messageDate.toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-        });
-    }
-}
 
 // Watchers
 watch(messagesContainer, (newContainer) => {
