@@ -15,6 +15,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import User from "./models/User.js";
 import Channel from "./models/Channel.js";
+import authenticate from "./middleware/auth.js";
 
 dotenv.config();
 
@@ -78,6 +79,10 @@ class ChatServer {
     }
 
     setupRoutes() {
+        /*
+            Public routes (no authentication required)
+        */
+
         // Registration
         this.app.post("/api/register", async (req, res) => {
             try {
@@ -99,15 +104,19 @@ class ChatServer {
                     }
                 );
 
+                // Emit an event to update the "all users" list
+                this.io.emit("update-users", await User.find({}, "username"));
+
                 res.status(201).json({
                     token,
                     user: { id: user._id, username },
                 });
             } catch (error) {
-                console.errir("Registration error:", error);
+                console.error("Registration error:", error); // Fixed typo "errir" to "error"
                 res.status(400).json({ error: error.message });
             }
         });
+
         // Login
         this.app.post("/api/login", async (req, res) => {
             try {
@@ -122,6 +131,7 @@ class ChatServer {
                     password,
                     user.password
                 );
+
                 if (!validPassword) {
                     return res.status(401).json({ error: "Invalid password" });
                 }
@@ -140,160 +150,362 @@ class ChatServer {
                 res.status(400).json({ error: error.message });
             }
         });
+
+        /*
+            Protected routes (authentication required)
+        */
+
         // New channel
-        this.app.post("/api/channels", async (req, res) => {
+        // Helper function to generate a random color
+        function getRandomColor() {
+            const letters = "0123456789ABCDEF";
+            let color = "#";
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+
+        this.app.post("/api/channels", authenticate, async (req, res) => {
             try {
-                const { name, creatorId } = req.body;
+                const { name, description } = req.body;
+                const creatorId = req.user._id; // From authenticate middleware
+
+                // console.log("Channel creator ID:", creatorId); // Debugging
+                // console.log("Channel name:", name); // Debugging
+                // console.log("Channel description:", description); // Debugging
+
                 const channel = new Channel({
                     name,
+                    description,
                     creator: creatorId,
                     members: [creatorId],
+                    color: getRandomColor(), // Add random color
                 });
 
                 await channel.save();
 
-                // Refresh user's channels list
-                await User.findByIdAndUpdate(creatorId, {
-                    $push: { channels: channel._id },
-                });
-                res.status(201).json(channel); // Send response
+                const populatedChannel = await Channel.findById(channel._id)
+                    .populate("creator", "username")
+                    .populate("members", "username");
+
+                this.io.emit("channel-updated", populatedChannel);
+
+                res.status(201).json(populatedChannel); // Send response
             } catch (error) {
                 console.error("Channel creation error:", error);
                 res.status(400).json({ error: error.message });
             }
         });
+
         // Delete channel
-        this.app.delete("/api/channels/:channelId", async (req, res) => {
-            try {
-                const { channelId } = req.params;
-                const { userId } = req.body;
+        this.app.delete(
+            "/api/channels/:channelId",
+            authenticate,
+            async (req, res) => {
+                // console.log("DELETE /api/channels/:channelId route hit"); // Debugging
+                try {
+                    const { channelId } = req.params;
+                    const userId = req.user._id; // From authenticate middleware
 
-                // Find the channel
-                const channel = await Channel.findById(channelId);
-                if (!channel) {
-                    return res.status(404).json({ error: "Channel not found" });
+                    // console.log("User ID from request:", userId); // Debugging
+                    // console.log("Channel ID from request:", channelId); // Debugging
+
+                    // Find the channel
+                    const channel = await Channel.findById(channelId)
+                        .populate("creator", "username") // Populate creator
+                        .populate("members", "username") // Populate members
+                        .populate("messages.sender", "username"); // Populate message senders
+
+                    if (!channel) {
+                        console.error("Channel not found:", channelId); // Debugging
+                        return res
+                            .status(404)
+                            .json({ error: "Channel not found" });
+                    }
+
+                    // console.log("Channel creator:", channel.creator); // Debugging
+                    // console.log("Channel creator ID:", channel.creator._id); // Debugging
+                    // console.log("User ID from token:", userId); // Debugging
+
+                    // Check if the user is the channel creator
+                    // Fixed: was unable to delete channel from the frontend due to id check
+                    if (channel.creator._id.toString() !== userId.toString()) {
+                        // Fixed: added "._id"
+                        return res.status(403).json({
+                            error: "Only the creator can delete the channel",
+                        });
+                    }
+
+                    // Delete the channel
+                    await Channel.findByIdAndDelete(channelId);
+
+                    // Remove the channel from all users channels list
+                    await User.updateMany(
+                        { channels: channelId },
+                        { $pull: { channels: channelId } }
+                    );
+
+                    // Broadcast the channel deletion to all clients
+                    this.io.emit("channel-deleted", channelId);
+
+                    res.json({ message: "Channel deleted successfully" });
+                } catch (error) {
+                    console.error("Channel deletion error:", error);
+                    res.status(400).json({ error: error.message });
                 }
-
-                // Check if the user is the channel creator
-                if (channel.creator.toString() !== userId) {
-                    return res.status(403).json({
-                        error: "Only the creator can delete the channel",
-                    });
-                }
-
-                // Delete the channel
-                await Channel.findByIdAndDelete(channelId);
-
-                // Remove the channel from all users channels list
-                await User.updateMany(
-                    { channels: channelId },
-                    { $pull: { channels: channelId } }
-                );
-
-                res.json({ message: "Channel deleted successfully" });
-            } catch (error) {
-                console.error("Channel deletion error:", error);
-                res.status(400).json({ error: error.message });
             }
-        });
+        );
+
+        // Kick member from channel
+        this.app.post(
+            "/api/channels/:channelId/kick",
+            authenticate,
+            async (req, res) => {
+                try {
+                    const { channelId } = req.params;
+                    const { userId, kickerId } = req.body;
+
+                    // Find the channel
+                    const channel = await Channel.findById(channelId)
+                        .populate("creator", "username")
+                        .populate("members", "username");
+
+                    if (!channel) {
+                        return res
+                            .status(404)
+                            .json({ error: "Channel not found" });
+                    }
+
+                    // Check if the kicker is the channel creator
+                    if (
+                        channel.creator._id.toString() !== kickerId.toString()
+                    ) {
+                        return res.status(403).json({
+                            error: "Only the channel creator can kick members",
+                        });
+                    }
+
+                    // Remove the user from the channel members list
+                    channel.members = channel.members.filter(
+                        (member) => member._id.toString() !== userId.toString()
+                    );
+
+                    await channel.save();
+
+                    // Broadcast the updated channel to all clients
+                    this.io.emit("channel-updated", channel);
+
+                    res.json({ message: "Member kicked successfully" });
+                } catch (error) {
+                    console.error("Error kicking member:", error);
+                    res.status(400).json({ error: error.message });
+                }
+            }
+        );
+
         // Get channels
-        this.app.get("/api/channels", async (req, res) => {
+        this.app.get("/api/channels", authenticate, async (req, res) => {
             try {
                 const channels = await Channel.find()
                     .populate("creator", "username")
-                    .populate("members", "username");
+                    .populate("members", "username")
+                    .populate("messages.sender", "username")
+                    .sort({ "messages.timestamp": -1 }); // Sort by latest message
+
                 res.json(channels);
             } catch (error) {
                 console.error("Get channels error:", error);
                 res.status(400).json({ error: error.message });
             }
         });
+
         // Channel join
-        this.app.post("/api/channels/:channelId/join", async (req, res) => {
-            try {
-                const { channelId } = req.params;
-                const { userId } = req.body;
+        this.app.post(
+            "/api/channels/:channelId/join",
+            authenticate,
+            async (req, res) => {
+                try {
+                    const { channelId } = req.params;
+                    const userId = req.user._id; // From authenticate middleware
 
-                const channel = await Channel.findByIdAndUpdate(
-                    channelId,
-                    { $addToSet: { members: userId } },
-                    { new: true }
-                );
+                    const channel = await Channel.findByIdAndUpdate(
+                        channelId,
+                        { $addToSet: { members: userId } },
+                        { new: true }
+                    )
+                        .populate("members", "username") // Populate members with usernames
+                        .exec();
 
-                await User.findByIdAndUpdate(userId, {
-                    $addToSet: { channels: channelId },
-                });
+                    if (!channel) {
+                        console.error("Channel not found:", channelId); // Debugging
+                        return res
+                            .status(404)
+                            .json({ error: "Channel not found" });
+                    }
 
-                res.json(channel); // Fixed typo: res.join -> res.json
-            } catch (error) {
-                console.error("Channel join error:", error);
-                res.status(400).json({ error: error.message });
-            }
-        });
-        // Get messages for a channel
-        this.app.get("/api/channels/:channelId/messages", async (req, res) => {
-            try {
-                const { channelId } = req.params;
-                if (!channelId) {
-                    return req
-                        .status(400)
-                        .json({ error: "Channel ID is required" });
+                    await User.findByIdAndUpdate(userId, {
+                        $addToSet: { channels: channelId },
+                    });
+
+                    res.json(channel); // Fixed typo: res.join -> res.json
+                } catch (error) {
+                    console.error("Channel join error:", error);
+                    res.status(400).json({ error: error.message });
                 }
-                const channel = await Channel.findById(channelId).populate(
-                    "messages.sender",
-                    "username"
-                );
-                res.json(channel.messages);
-            } catch (error) {
-                console.error(
-                    "Unable to get messages for a selected channel",
-                    error
-                );
-                res.status(400).json({ error: error.message });
             }
-        });
+        );
+
+        // Get messages for a channel
+        this.app.get(
+            "/api/channels/:channelId/messages",
+            authenticate,
+            async (req, res) => {
+                try {
+                    const { channelId } = req.params;
+
+                    if (!channelId) {
+                        return res // Fixed "req" to "res" typo
+                            .status(400)
+                            .json({ error: "Channel ID is required" });
+                    }
+
+                    const channel = await Channel.findById(channelId)
+                        .populate("members", "username") // Populate members
+                        .populate("messages.sender", "username"); // Populate message senders;
+
+                    if (!channel) {
+                        return res
+                            .status(404)
+                            .json({ error: "Channel not found" });
+                    }
+
+                    res.json(channel.messages);
+                } catch (error) {
+                    console.error(
+                        "Unable to get messages for a selected channel",
+                        error
+                    );
+                    res.status(400).json({ error: error.message });
+                }
+            }
+        );
+
+        // Fetch channel
+        this.app.get(
+            "/api/channels/:channelId",
+            authenticate,
+            async (req, res) => {
+                try {
+                    const { channelId } = req.params;
+
+                    const channel = await Channel.findById(channelId)
+                        .populate("creator", "username")
+                        .populate("members", "username")
+                        .populate("messages.sender", "username");
+
+                    if (!channel) {
+                        return res
+                            .status(404)
+                            .json({ error: "Channel not found" });
+                    }
+
+                    res.json(channel);
+                } catch (error) {
+                    console.error("Error fetching channel details:", error);
+                    res.status(400).json({ error: error.message });
+                }
+            }
+        );
+
         // Leave channel
-        this.app.post("/api/channels/:channelId/leave", async (req, res) => {
+        this.app.post(
+            "/api/channels/:channelId/leave",
+            authenticate,
+            async (req, res) => {
+                try {
+                    const { channelId } = req.params;
+                    const userId = req.user._id; // From authenticate middleware
+
+                    const channel = await Channel.findByIdAndUpdate(
+                        channelId,
+                        { $pull: { members: userId } },
+                        { new: true }
+                    )
+                        .populate("members", "username") // Populate members
+                        .exec();
+
+                    // Remove channel from user's list
+                    await User.findByIdAndUpdate(userId, {
+                        $pull: { channels: channelId },
+                    });
+
+                    res.json(channel);
+                } catch (error) {
+                    console.error("Error leaving channel:", error);
+                    res.status(400).json({ error: error.message });
+                }
+            }
+        );
+
+        // Fetch existing users
+        this.app.get("/api/users", authenticate, async (req, res) => {
             try {
-                const { channelId } = req.params;
-                const { userId } = req.body;
+                const users = await User.find({}, "username");
 
-                const channel = await Channel.findByIdAndUpdate(
-                    channelId,
-                    { $pull: { members: userId } },
-                    { new: true }
-                );
-
-                // Remove channel from user's list
-                await User.findByIdAndUpdate(userId, {
-                    $pull: { channels: channelId },
-                });
-
-                res.json(channel);
+                res.json(users);
             } catch (error) {
-                console.error("Error leaving channel:", error);
+                console.error("Failed to fetch users:", error);
                 res.status(400).json({ error: error.message });
             }
         });
     }
 
     setupSocketEvents() {
+        const onlineUsers = {}; // Track online users: { userId: socket.id }
+        const typingUsers = {}; // Track typing users: { channelId: Set<username> }
+
         // Handle new client connections
         this.io.on("connection", (socket) => {
             console.log("User connected:", socket.id);
 
-            const typingUsers = {}; // Track typing users for each channel
+            // Add user to onlineUsers when they connect
+            socket.on("user-online", (userId) => {
+                onlineUsers[userId] = socket.id; // Map userId to socket.id
+                // console.log("User online:", userId);
+                // console.log("Online users:", onlineUsers); // Debugging
+                this.io.emit("update-online-users", Object.keys(onlineUsers)); // Broadcast updated list
+            });
 
             // Handle channel join requests
-            socket.on("join-channel", (channelId) => {
+            socket.on("join-channel", async (channelId) => {
+                // console.log(`User ${socket.id} joining channel ${channelId}`); // Debugging
                 socket.join(channelId);
                 console.log(`User ${socket.id} joined channel ${channelId}`);
+
+                const channel = await Channel.findById(channelId)
+                    .populate("members", "username")
+                    .exec();
+
+                if (channel) {
+                    this.io.to(channelId).emit("channel-updated", channel);
+                }
             });
 
             // Handle channel leave requests
             socket.on("leave-channel", (channelId) => {
+                // console.log(`User ${socket.id} leaving channel ${channelId}`); // Debugging
                 socket.leave(channelId);
-                console.log(`User ${socket.id} left channel ${channelId}`);
+                console.log(`User ${socket.id} left channel ${channelId}`); // Debugging
+
+                // Broadcast the updated channel to all clients
+                Channel.findById(channelId)
+                    .populate("members", "username")
+                    .then((channel) => {
+                        if (channel) {
+                            this.io.emit("channel-updated", channel);
+                        }
+                    });
             });
 
             // Sending message to a specific channel
@@ -310,66 +522,125 @@ class ChatServer {
                     }
 
                     // Save message to MongoDB
-                    await Channel.findByIdAndUpdate(
+                    const message = {
+                        sender: userId,
+                        content,
+                        timestamp: new Date(),
+                    };
+
+                    // Update the channel with the new message
+                    const updatedChannel = await Channel.findByIdAndUpdate(
                         channelId,
                         {
                             $push: {
-                                messages: {
-                                    sender: userId,
-                                    content,
-                                    timestamp: new Date(),
-                                },
+                                messages: message,
                             },
                         },
                         { new: true }
-                    );
+                    )
+                        .populate("messages.sender", "username")
+                        .populate("members", "username");
 
-                    // Broadcast message to channel
+                    // Broadcast message to all users in the channel
                     this.io.to(channelId).emit("receive-message", {
                         channelId,
                         content,
-                        sender: { id: userId, username: user.username },
+                        sender: { _id: userId, username: user.username },
                         timestamp: new Date(),
                     });
+
+                    // Emit an event to update the channels list
+                    this.io.emit("update-channels", updatedChannel);
                 } catch (error) {
                     console.error("Error sending message:", error);
+                    socket.emit("error", { message: "Failed to send message" });
                 }
             });
 
             // Handle message typing indicator
-            socket.on("typing", (data) => {
+            socket.on("typing", async (data) => {
                 const { channelId, username } = data;
 
                 // Add user to typing list for the channel
                 if (!typingUsers[channelId]) {
                     typingUsers[channelId] = new Set();
                 }
+
                 typingUsers[channelId].add(username);
 
-                // Broadcast the updated typing list to the channel
-                this.io.to(channelId).emit("user-typing", {
-                    channelId,
-                    typingUsers: Array.from(typingUsers[channelId]),
+                // Fetch the channel to get its members
+                const channel = await Channel.findById(channelId).populate(
+                    "members",
+                    "_id"
+                );
+
+                if (!channel) {
+                    console.error("Channel not found:", channelId);
+                    return;
+                }
+
+                // Broadcast the updated typing list to all members of the channel
+                channel.members.forEach((member) => {
+                    const memberSocketId = onlineUsers[member._id];
+
+                    if (memberSocketId) {
+                        this.io.to(memberSocketId).emit("user-typing", {
+                            channelId,
+                            typingUsers: Array.from(typingUsers[channelId]),
+                        });
+                    }
                 });
             });
 
-            socket.on("stop-typing", (data) => {
+            // Handle message stop typing indicator
+            socket.on("stop-typing", async (data) => {
                 const { channelId, username } = data;
 
                 // Remove user from the typing list
                 if (typingUsers[channelId]) {
                     typingUsers[channelId].delete(username);
 
-                    // Broadcast the updated typing list to the channel
-                    this.io.to(channelId).emit("user-typing", {
-                        channelId,
-                        typingUsers: Array.from(typingUsers[channelId]),
+                    // Fetch the channel to get its members
+                    const channel = await Channel.findById(channelId).populate(
+                        "members",
+                        "_id"
+                    );
+
+                    if (!channel) {
+                        console.error("Channel not found:", channelId);
+                        return;
+                    }
+
+                    // Broadcast the updated typing list to all members of the channel
+                    channel.members.forEach((member) => {
+                        const memberSocketId = onlineUsers[member._id];
+
+                        if (memberSocketId) {
+                            this.io.to(memberSocketId).emit("user-typing", {
+                                channelId,
+                                typingUsers: Array.from(typingUsers[channelId]),
+                            });
+                        }
                     });
                 }
             });
 
             // Clean up on client disconnect
             socket.on("disconnect", () => {
+                const userId = Object.keys(onlineUsers).find(
+                    (key) => onlineUsers[key] === socket.id
+                );
+
+                if (userId) {
+                    delete onlineUsers[userId];
+                    console.log("User offline:", userId);
+
+                    this.io.emit(
+                        "update-online-users",
+                        Object.keys(onlineUsers)
+                    ); // Broadcast updated list
+                }
+
                 console.log("User disconnected:", socket.id);
             });
         });

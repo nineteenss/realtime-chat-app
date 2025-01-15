@@ -12,6 +12,7 @@ const channelSchema = new mongoose.Schema({
     // Added 'minLength: 3', 'maxLength: 50' to the name field
     // To ensure that the name is at least 3 characters long and not more than 50 characters
     name: { type: String, required: true, minlength: 3, maxlength: 50 },
+    description: { type: String, maxlength: 300 }, // Removed minlength to make field optional
     creator: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     messages: [
@@ -21,6 +22,7 @@ const channelSchema = new mongoose.Schema({
             timestamp: { type: Date, default: Date.now },
         },
     ],
+    color: { type: String, default: "#000000" }, // Store random color for channel icon
 });
 
 export default mongoose.model("Channel", channelSchema);

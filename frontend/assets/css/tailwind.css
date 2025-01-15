@@ -1,3 +1,40 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+body {
+    @apply bg-neutral-100 text-cyan-950 text-sm font-sans antialiased leading-5;
+}
+
+* {
+    scrollbar-width: thin; /* Firefox appearance styling */
+    scrollbar-color: #cbcbcb transparent;
+}
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+    width: 7px; /* Adjust scrollbar width */
+    height: 5px; /* Adjust scrollbar height */
+}
+
+::-webkit-scrollbar-track {
+    background: transparent; /* Make scrollbar track transparent */
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbcbcb; /* Scrollbar thumb color */
+    border-radius: 9999px; /* Rounded corners */
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #aeaeae; /* Scrollbar thumb color on hover */
+}
+
+@layer components {
+    .btn {
+        @apply px-4 py-2 bg-blue-300 text-white rounded font-semibold;
+    }
+    .btn:disabled {
+        @apply bg-gray-300 text-gray-700;
+    }
+}

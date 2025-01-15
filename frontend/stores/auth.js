@@ -78,6 +78,7 @@ export const useAuthStore = defineStore("auth", {
                 this.token = data.token;
                 this.user = data.user;
 
+                // console.log("Login successful. Token:", this.token);
                 return data;
             } catch (error) {
                 throw error;
@@ -88,6 +89,8 @@ export const useAuthStore = defineStore("auth", {
         logout() {
             this.token = null;
             this.user = null;
+            localStorage.removeItem("authToken");
+            localStorage.removeItem("authUser");
         },
     },
     persist: true,
