@@ -49,8 +49,25 @@
         </div>
 
         <!-- Middle Column (Chat Messages) -->
-        <div class="flex flex-col flex-1 bg-white p-4">
+        <div class="flex flex-col flex-1 bg-white p-4 relative">
             <template v-if="chatStore.currentChannel">
+                <!-- Blurred Overlay for Non-Members -->
+                <div
+                    v-if="!isChannelMember"
+                    class="absolute inset-0 bg-white bg-opacity-60 backdrop-blur-sm flex flex-col items-center justify-center z-10"
+                >
+                    <p class="text-gray-500 text-lg mb-4">
+                        You have to join the channel to see its content and
+                        participate.
+                    </p>
+                    <button
+                        @click="joinChannel"
+                        class="btn bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                    >
+                        Join Channel
+                    </button>
+                </div>
+
                 <!-- Header with Room Title and Members Count -->
                 <div class="border-b border-gray-200 pb-4 mb-4">
                     <h2 class="text-xl font-semibold">
@@ -71,6 +88,7 @@
 
                 <!-- Scrollable Top Row -->
                 <div
+                    v-if="isChannelMember"
                     ref="messagesContainer"
                     class="flex-1 overflow-y-auto mb-4 space-y-0.5"
                 >
@@ -102,6 +120,7 @@
 
                 <!-- Pinned Bottom Row -->
                 <div
+                    v-if="isChannelMember"
                     class="h-16 bg-gray-100 flex items-center justify-center rounded"
                 >
                     <div class="message_input flex gap-3 w-full px-4">
@@ -117,7 +136,6 @@
                             :disabled="!newMessage.trim()"
                             class="disabled:text-slate-300 text-blue-500 transition-colors duration-200 flex items-center cursor-pointer"
                         >
-                            <!-- Replace "Send" with a "send" icon -->
                             <Icon name="proicons:send" class="w-7 h-7" />
                         </button>
                     </div>
@@ -127,7 +145,7 @@
             <template v-else>
                 <div class="flex-1 flex items-center justify-center">
                     <p class="text-gray-500 text-center">
-                        Please select a channel to start a conversation.
+                        Please select a channel to view details.
                     </p>
                 </div>
             </template>
@@ -162,10 +180,12 @@ const {
     onlineMembersCount,
     filteredMembers,
     isChannelCreator,
+    isChannelMember,
     chatStore,
     authStore,
     createNewChannel,
     selectChannel,
+    joinChannel,
     sendMessage,
     handleInput,
     formatTypingNotification,

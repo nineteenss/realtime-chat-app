@@ -57,6 +57,15 @@ const initializeStores = () => {
         );
     });
 
+    // Check if the current user is a member of the selected channel
+    const isChannelMember = computed(() => {
+        if (!chatStore.currentChannel || !authStore.user) return false;
+        return chatStore.currentChannel.members.some(
+            (member) =>
+                member._id === authStore.user.id || member === authStore.user.id
+        );
+    });
+
     // Functions
     const createNewChannel = async () => {
         if (newChannelName.value.trim()) {
@@ -78,17 +87,25 @@ const initializeStores = () => {
 
     const selectChannel = async (channelId) => {
         try {
-            // Join the selected channel and fetch messages
-            await chatStore.joinChannel(channelId);
-            await chatStore.fetchMessages(channelId);
-
-            // Scroll to the bottom after joining the channel
-            if (chatStore.currentChannel) {
-                chatStore.scrollToBottom();
-            }
+            // Fetch the channel details without joining
+            const channel = await chatStore.fetchChannelDetails(channelId);
+            chatStore.currentChannel = channel; // Setting current channel
         } catch (error) {
             console.error("Error joining channel:", error);
             alert("Error joining channel");
+        }
+    };
+
+    const joinChannel = async () => {
+        if (chatStore.currentChannel) {
+            try {
+                await chatStore.joinChannel(chatStore.currentChannel._id);
+                await chatStore.fetchMessages(chatStore.currentChannel._id);
+                chatStore.scrollToBottom();
+            } catch (error) {
+                console.error("Error joining channel:", error);
+                alert("Failed to join channel.");
+            }
         }
     };
 
@@ -234,10 +251,12 @@ const initializeStores = () => {
         onlineMembersCount,
         filteredMembers,
         isChannelCreator,
+        isChannelMember,
         chatStore,
         authStore,
         createNewChannel,
         selectChannel,
+        joinChannel,
         leaveChannel,
         sendMessage,
         handleInput,

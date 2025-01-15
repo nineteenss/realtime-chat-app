@@ -341,6 +341,33 @@ class ChatServer {
             }
         );
 
+        // Fetch channel
+        this.app.get(
+            "/api/channels/:channelId",
+            authenticate,
+            async (req, res) => {
+                try {
+                    const { channelId } = req.params;
+
+                    const channel = await Channel.findById(channelId)
+                        .populate("creator", "username")
+                        .populate("members", "username")
+                        .populate("messages.sender", "username");
+
+                    if (!channel) {
+                        return res
+                            .status(404)
+                            .json({ error: "Channel not found" });
+                    }
+
+                    res.json(channel);
+                } catch (error) {
+                    console.error("Error fetching channel details:", error);
+                    res.status(400).json({ error: error.message });
+                }
+            }
+        );
+
         // Leave channel
         this.app.post(
             "/api/channels/:channelId/leave",

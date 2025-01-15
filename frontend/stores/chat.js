@@ -429,6 +429,43 @@ export const useChatStore = defineStore("chat", {
             }
         },
 
+        // Fetch channel details without joining
+        async fetchChannelDetails(channelId) {
+            const authStore = useAuthStore();
+
+            if (!authStore.token) {
+                throw new Error("No token found. Please log in.");
+            }
+
+            try {
+                const backendUrl = this.getBackendUrl();
+                const response = await fetch(
+                    `${backendUrl}/api/channels/${channelId}`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${authStore.token}`,
+                        },
+                    }
+                );
+
+                if (response.status === 401) {
+                    authStore.logout();
+                    navigateTo("/login");
+                    throw new Error("Session expired. Please log in again.");
+                }
+
+                if (!response.ok) {
+                    throw new Error("Failed to fetch channel details");
+                }
+
+                const channel = await response.json();
+                return channel;
+            } catch (error) {
+                console.error("Error fetching channel details:", error);
+                throw error;
+            }
+        },
+
         // Leave the channel
         async leaveChannel(channelId) {
             const authStore = useAuthStore();
