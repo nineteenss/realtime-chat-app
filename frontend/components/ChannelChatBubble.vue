@@ -14,14 +14,15 @@
                 chatStore.messages[index - 1].sender._id !== message.sender._id
             "
             :class="[
-                'text-sm font-semibold mb-1 mt-4 mx-3 flex gap-1',
+                'text-sm font-semibold mb-1 mt-4 mx-3 flex gap-2',
                 message.sender._id === authStore.user.id
-                    ? 'flex-row-reverse'
-                    : 'flex-row',
+                    ? 'flex-row'
+                    : 'flex-row-reverse',
             ]"
         >
             <p
-                class="uppercase text-[10px]/[12px] text-white bg-orange-500 px-1.5 py-1 rounded-full flex font-bold"
+                v-if="isChannelCreator(message.sender._id)"
+                class="uppercase text-[10px]/[23px] text-orange-500 font-bold"
             >
                 Owner
             </p>
@@ -70,4 +71,12 @@ const props = defineProps({
         required: true,
     },
 });
+
+// Check if the sender is the channel creator
+const isChannelCreator = (senderId) => {
+    const creatorId =
+        props.chatStore.currentChannel?.creator?._id ||
+        props.chatStore.currentChannel?.creator;
+    return creatorId === senderId;
+};
 </script>

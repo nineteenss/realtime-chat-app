@@ -177,9 +177,11 @@ class ChatServer {
 
                 await channel.save();
 
-                const populatedChannel = await Channel.findById(
-                    channel._id
-                ).populate("creator", "username");
+                const populatedChannel = await Channel.findById(channel._id)
+                    .populate("creator", "username")
+                    .populate("members", "username");
+
+                this.io.emit("channel-updated", populatedChannel);
 
                 res.status(201).json(populatedChannel); // Send response
             } catch (error) {
@@ -198,7 +200,11 @@ class ChatServer {
                     const userId = req.user._id; // From authenticate middleware
 
                     // Find the channel
-                    const channel = await Channel.findById(channelId);
+                    const channel = await Channel.findById(channelId)
+                        .populate("creator", "username") // Populate creator
+                        .populate("members", "username") // Populate members
+                        .populate("messages.sender", "username"); // Populate message senders
+
                     if (!channel) {
                         return res
                             .status(404)
@@ -258,7 +264,9 @@ class ChatServer {
                         channelId,
                         { $addToSet: { members: userId } },
                         { new: true }
-                    );
+                    )
+                        .populate("members", "username") // Populate members with usernames
+                        .exec();
 
                     if (!channel) {
                         console.error("Channel not found:", channelId); // Debugging
@@ -293,10 +301,9 @@ class ChatServer {
                             .json({ error: "Channel ID is required" });
                     }
 
-                    const channel = await Channel.findById(channelId).populate(
-                        "messages.sender",
-                        "username"
-                    );
+                    const channel = await Channel.findById(channelId)
+                        .populate("members", "username") // Populate members
+                        .populate("messages.sender", "username"); // Populate message senders;
 
                     if (!channel) {
                         return res
@@ -328,7 +335,9 @@ class ChatServer {
                         channelId,
                         { $pull: { members: userId } },
                         { new: true }
-                    );
+                    )
+                        .populate("members", "username") // Populate members
+                        .exec();
 
                     // Remove channel from user's list
                     await User.findByIdAndUpdate(userId, {
@@ -355,21 +364,47 @@ class ChatServer {
             // Add user to onlineUsers when they connect
             socket.on("user-online", (userId) => {
                 onlineUsers[userId] = socket.id; // Map userId to socket.id
-                console.log("User online:", userId);
-                console.log("Online users:", onlineUsers); // Debugging
+                // console.log("User online:", userId);
+                // console.log("Online users:", onlineUsers); // Debugging
                 this.io.emit("update-online-users", Object.keys(onlineUsers)); // Broadcast updated list
             });
 
             // Handle channel join requests
-            socket.on("join-channel", (channelId) => {
+            socket.on("join-channel", async (channelId) => {
                 socket.join(channelId);
                 console.log(`User ${socket.id} joined channel ${channelId}`);
+
+                const channel = await Channel.findById(channelId)
+                    .populate("members", "username")
+                    .exec();
+
+                if (channel) {
+                    this.io.to(channelId).emit("channel-updated", channel);
+                }
+
+                // Broadcast the updated channel to all clients
+                // Channel.findById(channelId)
+                //     .populate("members", "username")
+                //     .then((channel) => {
+                //         if (channel) {
+                //             this.io.emit("channel-updated", channel);
+                //         }
+                //     });
             });
 
             // Handle channel leave requests
             socket.on("leave-channel", (channelId) => {
                 socket.leave(channelId);
                 console.log(`User ${socket.id} left channel ${channelId}`);
+
+                // Broadcast the updated channel to all clients
+                Channel.findById(channelId)
+                    .populate("members", "username")
+                    .then((channel) => {
+                        if (channel) {
+                            this.io.emit("channel-updated", channel);
+                        }
+                    });
             });
 
             // Sending message to a specific channel
@@ -401,7 +436,9 @@ class ChatServer {
                             },
                         },
                         { new: true }
-                    ).populate("messages.sender", "username");
+                    )
+                        .populate("messages.sender", "username")
+                        .populate("members", "username");
 
                     // Broadcast message to all users in the channel
                     this.io.to(channelId).emit("receive-message", {

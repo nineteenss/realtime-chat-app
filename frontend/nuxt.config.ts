@@ -22,11 +22,23 @@ export default defineNuxtConfig({
 
   modules: [
     "@pinia/nuxt",
-    "pinia-plugin-persistedstate/nuxt",
-    "@nuxtjs/tailwindcss"
+    ["pinia-plugin-persistedstate/nuxt", { clientOnly: true }],
+    "@nuxtjs/tailwindcss",
+    "@nuxt/icon"
   ],
 
-  imports: {
-    dirs: ["stores"],
+  pinia: {
+    storesDirs: ['./stores/**']
   },
+
+  // imports: {
+  //   dirs: ["stores"],
+  // },
+
+  // pinia: {
+  //   autoImports: [
+  //     "defineStore", // Auto-import `defineStore`
+  //     "storeToRefs", // Auto-import `storeToRefs`
+  //   ],
+  // }
 })

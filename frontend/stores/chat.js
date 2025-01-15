@@ -27,14 +27,17 @@ export const useChatStore = defineStore("chat", {
         scrollToBottom() {
             if (!this.currentChannel || !this.messagesContainer) {
                 console.warn(
-                    "No channel selected or messagesContainer is null. Cannot scroll."
+                    "No channel selected or messagesContainer is null."
                 );
                 return;
             }
 
-            this.messagesContainer.scrollTo({
-                top: this.messagesContainer.scrollHeight,
-                behavior: "smooth",
+            // Wait for the DOM to update before scrolling
+            nextTick(() => {
+                this.messagesContainer.scrollTo({
+                    top: this.messagesContainer.scrollHeight,
+                    behavior: "smooth",
+                });
             });
         },
 
@@ -85,6 +88,7 @@ export const useChatStore = defineStore("chat", {
             // Listen for updates to the online user list
             this.socket.on("update-online-users", (onlineUserIds) => {
                 this.onlineUsers = onlineUserIds;
+                // console.log("Online users:", this.onlineUsers); // Debugging
             });
 
             // Listen for updates to the channels list
@@ -93,18 +97,57 @@ export const useChatStore = defineStore("chat", {
                 const index = this.channels.findIndex(
                     (channel) => channel._id === updatedChannel._id
                 );
+
                 if (index !== -1) {
                     // Update the messages array reactively
-                    this.channels[index].messages = updatedChannel.messages;
-                    // console.log("Updated channels list:", this.channels); // Debugging
-
-                    // Sort the channels by the last message timestamp
-                    this.channels = this.sortChannelsByLastMessage(
-                        this.channels
-                    );
-
-                    // console.log("Sorted channels list:", this.channels); // Debugging
+                    this.channels[index] = updatedChannel;
+                } else {
+                    this.channels.push(updatedChannel);
                 }
+
+                this.channels = this.sortChannelsByLastMessage(this.channels);
+            });
+
+            // this.socket.on("update-channels", (updatedChannel) => {
+            //     // console.log("Received update-channels event:", updatedChannel); // Debugging
+            //     const index = this.channels.findIndex(
+            //         (channel) => channel._id === updatedChannel._id
+            //     );
+
+            //     if (index !== -1) {
+            //         // Update the messages array reactively
+            //         this.channels[index].messages = updatedChannel.messages;
+            //         // console.log("Updated channels list:", this.channels); // Debugging
+
+            //         // Sort the channels by the last message timestamp
+            //         this.channels = this.sortChannelsByLastMessage(
+            //             this.channels
+            //         );
+
+            //         // console.log("Sorted channels list:", this.channels); // Debugging
+            //     }
+            // });
+
+            this.socket.on("channel-updated", (updatedChannel) => {
+                // Check if the channel already exists in the list
+                const index = this.channels.findIndex(
+                    (channel) => channel._id === updatedChannel._id
+                );
+
+                if (index !== -1) {
+                    // Update the existing channel
+                    this.channels[index] = updatedChannel;
+                } else {
+                    // Add the new channel to the list
+                    this.channels.push(updatedChannel);
+                }
+
+                // If the updated channel is the current channel, update the currentChannel state
+                if (this.currentChannel?._id === updatedChannel._id) {
+                    this.currentChannel = updatedChannel;
+                }
+
+                console.log("Channel updated:", updatedChannel); // Debugging
             });
 
             // Listen for incoming messages and add them to messages array
@@ -206,10 +249,12 @@ export const useChatStore = defineStore("chat", {
                 }
 
                 // Add the new channel to the list
-                this.channels.push(channel);
+                // this.channels.push(channel);
 
                 // Join the channel after creation
                 await this.joinChannel(channel._id);
+
+                console.log("Created channel:", channel); // Debugging
 
                 return channel;
             } catch (error) {
@@ -309,12 +354,15 @@ export const useChatStore = defineStore("chat", {
 
                 // Emit event to server to join the channel & update current channel
                 this.socket.emit("join-channel", channelId);
+
                 // Update the currentChannel state with the fetched data
                 this.currentChannel = channel; // Store the full channel object
                 this.messages = []; // Cleaning messages on channel switch
 
                 // Fetch messages for selected channel
                 await this.fetchMessages(channelId);
+                console.log("Joined channel:", channel); // Debugging
+                console.log("Channel members:", channel.members); // Debugging
             } catch (error) {
                 console.error("Error joining channel", error);
                 throw error;
