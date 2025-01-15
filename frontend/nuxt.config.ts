@@ -1,7 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
-  devtools: { enabled: true },
+  devtools: { enabled: false },
 
   ssr: true,
 
@@ -31,14 +31,4 @@ export default defineNuxtConfig({
     storesDirs: ['./stores/**']
   },
 
-  // imports: {
-  //   dirs: ["stores"],
-  // },
-
-  // pinia: {
-  //   autoImports: [
-  //     "defineStore", // Auto-import `defineStore`
-  //     "storeToRefs", // Auto-import `storeToRefs`
-  //   ],
-  // }
 })
