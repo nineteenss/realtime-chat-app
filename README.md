@@ -82,6 +82,34 @@ A real-time chat application built with Nuxt.js (frontend), Express.js (backend)
 -   Bcrypt: Password hashing.
 -   JSON Web Token (JWT): For authentication.
 
+# Known issues
+
+-   An arbitrary number of message copies are repeated when sent to the channel when there is no activity in the chat for a few minutes (Fixes on page reload);
+    -   Probably can be fixed on app build, so no extra dev dependencies are required on a constant basis and there's no constant backend reloads due to file saves.
+-   Fetch errors at user registration process (probably due to `http` protocol used in production environment) or `npm run dev` mode (Needs more time to investigate the issue);
+-   Icons do not appear properly (colored squares) in production (currently a VPS server);
+-   Sometimes `offline` status for user does not appear even when user have left the page (e.g. closed browser tab);
+-   and some other little issues related to backend server strtucture.
+
+# TBD
+
+Here's a list of example improvements that need to be made to the app before pushing it to production release.
+
+-   **DM** - Direct messaging (ability to make send direct messages from
+    one registered member to another);
+-   **Chat roles** - Admin & moderator roles for better chat interactivity;
+-   **Replies** - Ability to make replies onto the picked message in channel
+    or direct message;
+-   **Emoji** - Emoji support for both DM and Channels;
+-   **Various notifications** - New message, sounds, etc.;
+-   **User restrictions** - E.g. private channels, mute notifications, mute chat member (Owner), etc.;
+-   **File upload** - Ability to upload various file formats in chat e.g. - images, videos, documents, etc.;
+-   **Voice messages** - Ability to send recorded voice messages;
+-   **Improved registration** - Improved and more complex registration system in order to maintain better users
+    security environment;
+-   **Better code organisation and project file structure**;
+-   **And many more...**
+
 ## License
 
 This project available under the GPL-3.0 License.
